@@ -89,7 +89,7 @@ The model validation workflow is manual. Do not add a Qwen download or `train-pr
 
 ## Branches in this integration
 
-`main` is merge commit `7e5d70f`. The published history still starts at `9b8bcc4` (`Initial commit`). Do not rewrite that commit.
+`main` contains `7e5d70f`, the merge of the CI pull request. The published history still starts at `9b8bcc4` (`Initial commit`). Do not rewrite that commit.
 
 | Branch | Role |
 | --- | --- |
