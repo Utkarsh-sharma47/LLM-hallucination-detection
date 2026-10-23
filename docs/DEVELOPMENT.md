@@ -89,7 +89,7 @@ The model validation workflow is manual. Do not add a Qwen download or `train-pr
 
 ## Branches in this integration
 
-`main` stays at the published `Initial commit` until these pull requests merge. Do not rewrite `9b8bcc4`.
+`main` contains `7e5d70f`, the merge of the CI pull request. The published history still starts at `9b8bcc4` (`Initial commit`). Do not rewrite that commit.
 
 | Branch | Role |
 | --- | --- |
@@ -118,10 +118,10 @@ On 23 October 2026, at `46a1194`:
 - `python -m glassbox --samples` exited 0.
 - `python -m glassbox --analyze-text --question "What is the capital of Australia?" --answer "The capital of Australia is Canberra."` exited 0. The detector line was `PROBE NOT TRAINED` because this mode does not apply the saved probe. The curated check marked the answer correct.
 
-Pull requests opened for this integration, in merge order:
+Pull requests merged into `main`, in order:
 
-- https://github.com/Utkarsh-sharma47/LLM-hallucination-detection/pull/2 (`feat/glassbox`)
-- https://github.com/Utkarsh-sharma47/LLM-hallucination-detection/pull/3 (`docs/project-documentation`)
-- https://github.com/Utkarsh-sharma47/LLM-hallucination-detection/pull/4 (`ci/github-actions`)
+- https://github.com/Utkarsh-sharma47/LLM-hallucination-detection/pull/2 (`feat/glassbox`) merged as `50dcc1a`
+- https://github.com/Utkarsh-sharma47/LLM-hallucination-detection/pull/3 (`docs/project-documentation`) merged as `008a827`
+- https://github.com/Utkarsh-sharma47/LLM-hallucination-detection/pull/4 (`ci/github-actions`) merged as `7e5d70f`
 
-Pull request 4 is the full tree, so its Actions run is the check before `main` moves. Routine CI does not download Qwen.
+The `checks` job on pull request 4 completed with success before that merge. Routine CI does not download Qwen. The manual model workflow has not been run.
