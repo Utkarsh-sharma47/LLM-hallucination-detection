@@ -1,0 +1,354 @@
+"""Interactive terminal demo.
+
+The model is loaded on the first question and reused. A missing probe is
+reported as ``PROBE NOT TRAINED`` rather than replaced with a heuristic.
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from dataclasses import replace
+from pathlib import Path
+
+from rich.console import Console
+
+from glassbox.config import repo_root
+from glassbox.demo_config import default_probe_dir, load_demo_config
+from glassbox.models.backend import HuggingFaceBackend
+from glassbox.models.resources import ModelMemoryError
+from glassbox.present import (
+    DEMO_QUESTIONS,
+    LiveTokenView,
+    make_console,
+    render_banner,
+    render_epilogue,
+    render_external,
+    render_samples,
+    render_turn,
+)
+from glassbox.probes.logistic import PROBE_NOT_TRAINED
+from glassbox.probes.store import load_probe
+from glassbox.reporting import (
+    format_diagnostics,
+    format_export_message,
+    format_probe_view,
+    format_token_view,
+    format_verification_view,
+)
+from glassbox.session import DemoSession
+from glassbox.verification import (
+    assess_answer,
+    find_fact,
+    load_curated_facts,
+    reference_for_question,
+)
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Launch the terminal demo."""
+    parser = argparse.ArgumentParser(prog="glassbox")
+    parser.add_argument(
+        "--config", type=Path, default=None, help="Demo YAML. Defaults to configs/demo.yaml."
+    )
+    parser.add_argument("--question", default=None, help="Ask one question without the menu.")
+    parser.add_argument("--once", action="store_true", help="Print one answer and exit.")
+    parser.add_argument(
+        "--offline", action="store_true", help="Use cached weights and do not download."
+    )
+    parser.add_argument(
+        "--model", default=None, help="Override the model id, for example sshleifer/tiny-gpt2."
+    )
+    parser.add_argument(
+        "--probe",
+        type=Path,
+        default=None,
+        help="Probe directory. Omit to use the default if it exists.",
+    )
+    parser.add_argument("--references", type=Path, default=None, help="Curated reference YAML.")
+    parser.add_argument(
+        "--demo", action="store_true", help="Run the three built-in sample questions and exit."
+    )
+    parser.add_argument(
+        "--samples",
+        action="store_true",
+        help="List the sample questions and exit. Does not load a model.",
+    )
+    parser.add_argument(
+        "--analyze-text",
+        action="store_true",
+        dest="analyze_text",
+        help="Check a supplied answer. Does not load a model or probe hidden states.",
+    )
+    parser.add_argument("--answer", default=None, help="Answer text for --analyze-text.")
+    parser.add_argument(
+        "--max-new-tokens", type=int, default=None, help="Override the generation length."
+    )
+    parser.add_argument(
+        "--distribution-export",
+        choices=("topk", "full"),
+        default="topk",
+        help="topk stores the shown alternatives. full also keeps the vocabulary for export.",
+    )
+    commands = parser.add_subparsers(dest="command")
+    train = commands.add_parser(
+        "train-probe",
+        help="Train and evaluate the HaluEval pair probe on the demo model.",
+    )
+    train.add_argument("--max-questions", type=int, default=240)
+    train.add_argument("--download-data", action="store_true")
+    train.add_argument("--snapshot", type=Path, default=None)
+    train.add_argument("--seed", type=int, default=0)
+    train.add_argument("--run-id", default="halueval-pair-001")
+    train.add_argument("--output", type=Path, default=None)
+    external = commands.add_parser(
+        "eval-truthfulqa",
+        help="Generate TruthfulQA answers with the saved probe. Does not train.",
+    )
+    external.add_argument("--max-questions", type=int, default=40)
+    external.add_argument("--snapshot", type=Path, default=None)
+    external.add_argument("--probe", type=Path, default=None)
+    external.add_argument("--seed", type=int, default=0)
+    external.add_argument("--run-id", default="truthfulqa-generation-001")
+    baselines = commands.add_parser(
+        "text-baselines",
+        help="Score length, overlap, and answer-text classifiers. Does not load Qwen.",
+    )
+    baselines.add_argument("--snapshot", type=Path, default=None)
+    baselines.add_argument("--max-questions", type=int, default=200)
+    baselines.add_argument("--seed", type=int, default=0)
+    baselines.add_argument("--run-id", default="halueval-text-baselines-001")
+    audit = commands.add_parser(
+        "audit-generations",
+        help="Compare saved generation labels with the current reference labeler. Does not load Qwen.",
+    )
+    audit.add_argument("--report", type=Path, default=None)
+    audit.add_argument("--snapshot", type=Path, default=None)
+    audit.add_argument("--run-id", default="truthfulqa-label-audit-001")
+    args = parser.parse_args(argv)
+    if args.command == "train-probe":
+        from glassbox.probes.training import train_command
+
+        return train_command(args)
+    if args.command == "eval-truthfulqa":
+        from glassbox.probes.truthfulqa_eval import evaluate_command
+
+        return evaluate_command(args)
+    if args.command == "text-baselines":
+        from glassbox.probes.text_baseline import text_baseline_command
+
+        return text_baseline_command(args)
+    if args.command == "audit-generations":
+        from glassbox.probes.generation_audit import audit_command
+
+        return audit_command(args)
+    console = make_console()
+    if args.samples:
+        render_samples(console)
+        return 0
+    if args.analyze_text and args.demo:
+        print("Choose either --demo or --analyze-text.", file=sys.stderr)
+        return 2
+    try:
+        config = load_demo_config(args.config, offline=args.offline, model_name=args.model)
+        references_path = args.references or config.references_path
+        facts = load_curated_facts(references_path)
+    except (OSError, ValueError, FileNotFoundError) as exc:
+        print(f"Glass Box could not start: {exc}", file=sys.stderr)
+        return 1
+    if args.analyze_text:
+        if not args.question or args.answer is None:
+            print("Pass --question and --answer with --analyze-text.", file=sys.stderr)
+            return 2
+        return _analyze_text(
+            console, args.question, args.answer, facts, args.probe or config.probe_dir
+        )
+    try:
+        probe = _load_optional_probe(args.probe if args.probe is not None else config.probe_dir)
+    except (OSError, ValueError, FileNotFoundError) as exc:
+        print(f"Glass Box could not start: {exc}", file=sys.stderr)
+        return 1
+    generation = config.generation
+    generation = replace(generation, distribution_export=args.distribution_export)
+    if args.max_new_tokens is not None:
+        generation = replace(generation, max_new_tokens=args.max_new_tokens)
+    backend = HuggingFaceBackend(config.spec)
+    session = DemoSession(backend=backend, settings=generation, facts=facts, probe=probe)
+    if probe is None:
+        detector = PROBE_NOT_TRAINED
+    elif probe.calibrated:
+        detector = "calibrated probe loaded"
+    else:
+        detector = "experimental probe loaded"
+    render_banner(
+        console,
+        model_name=config.spec.name,
+        backend_label="Hugging Face causal LM",
+        detector_status=detector,
+        detail=config.selection_reason,
+    )
+    if args.once and not args.question and not args.demo:
+        print("Pass --question with --once.", file=sys.stderr)
+        return 2
+    if args.demo:
+        return _run_demo(session, console, detector)
+    if args.question:
+        code = _run_question(session, args.question, console)
+        if code != 0 or args.once:
+            return code
+        if not _menu(session):
+            return 0
+    return _interactive(session, console)
+
+
+def app() -> None:
+    """Console-script entry. Preserves the integer exit code."""
+    raise SystemExit(main())
+
+
+def _run_demo(session: DemoSession, console: Console, detector: str) -> int:
+    collected = []
+    for question in DEMO_QUESTIONS:
+        code = _run_question(session, question, console)
+        if code != 0:
+            return code
+        collected.append(session.turns[-1])
+    render_epilogue(console, collected, detector)
+    return 0
+
+
+def _analyze_text(
+    console: Console, question: str, answer: str, facts, probe_dir: Path | None
+) -> int:
+    fact = find_fact(question, facts)
+    reference = (
+        assess_answer(fact, answer) if fact is not None else reference_for_question(question, facts)
+    )
+    folder = default_probe_dir() if probe_dir is None else probe_dir
+    detail = "Text analysis does not load model weights."
+    if (folder / "probe.joblib").is_file():
+        detail += " A saved probe is on disk and was not applied to this text."
+    render_banner(
+        console,
+        model_name="not loaded",
+        backend_label="supplied text",
+        detector_status=PROBE_NOT_TRAINED,
+        detail=detail,
+    )
+    render_external(
+        console,
+        question=question,
+        answer=answer,
+        reference_status=reference.status,
+        reference_detail=reference.detail,
+        probe_status=PROBE_NOT_TRAINED,
+    )
+    return 0
+
+
+def _run_question(session: DemoSession, question: str, console: Console) -> int:
+    view = LiveTokenView(console, session.settings.max_new_tokens) if console.is_terminal else None
+    try:
+        _ensure_model(session, console)
+        if view is None:
+            turn = session.ask(question)
+        else:
+            with view:
+                turn = session.ask(question, on_token=view.update)
+    except (ModelMemoryError, OSError, ValueError, RuntimeError, ImportError) as exc:
+        print(f"Generation failed: {exc}", file=sys.stderr)
+        return 1
+    render_turn(console, turn)
+    return 0
+
+
+COMMAND_LEGEND = (
+    "n = ask another question\n"
+    "t = token probability analysis — generated output-token probabilities and alternatives\n"
+    "p = probe analysis — hidden-state probe score, separate from token probabilities\n"
+    "v = reference verification — external curated check, separate from the probe\n"
+    "d = diagnostics — model, prompt length, latency, and hidden-state shape\n"
+    "e = export report — write JSON, Markdown, and the distribution table\n"
+    "q = quit\n"
+)
+
+
+def _interactive(session: DemoSession, console: Console) -> int:
+    """Ask questions until a blank line or quit. Previous turns stay in the session."""
+    console.print(
+        "[dim]Ask any question. It does not need a curated reference. A blank line quits.[/dim]"
+    )
+    while True:
+        try:
+            question = input("\nQuestion (blank to quit): ").strip()
+        except EOFError:
+            print()
+            return 0
+        if not question:
+            return 0
+        code = _run_question(session, question, console)
+        if code != 0:
+            return code
+        if not _menu(session):
+            return 0
+
+
+def _menu(session: DemoSession) -> bool:
+    """Handle inspection commands. Return True when the user wants another question."""
+    print(COMMAND_LEGEND, end="")
+    while True:
+        try:
+            command = input("glassbox [n/t/p/v/d/e/q]> ").strip().lower()
+        except EOFError:
+            print()
+            return False
+        if command in {"n", "next"}:
+            return True
+        if command in {"q", "quit"}:
+            return False
+        rendered = render_command(session, command, root=repo_root() / "artifacts")
+        if rendered is None:
+            print(COMMAND_LEGEND, end="")
+            continue
+        print(rendered, end="" if rendered.endswith("\n") else "\n")
+
+
+def render_command(session: DemoSession, command: str, *, root: Path) -> str | None:
+    """Return the text for an inspection command, or None when it is unknown."""
+    if command not in {"t", "p", "v", "d", "e"}:
+        return None
+    if not session.turns:
+        return "No turn yet.\n"
+    turn = session.turns[-1]
+    if command == "t":
+        return format_token_view(turn)
+    if command == "p":
+        return format_probe_view(turn)
+    if command == "v":
+        return format_verification_view(turn)
+    if command == "d":
+        return format_diagnostics(turn)
+    path = session.export(root)
+    extras = sorted(item for item in path.parent.glob("distributions-*") if item.is_file())
+    return format_export_message(path, path.with_suffix(".md"), extras)
+
+
+def _ensure_model(session: DemoSession, console: Console) -> None:
+    backend = session.backend
+    ensure = getattr(backend, "ensure_loaded", None)
+    load_count = getattr(backend, "load_count", None)
+    if callable(ensure) and load_count == 0:
+        console.print("[dim]Loading model once for this session...[/dim]")
+        ensure()
+        console.print(
+            f"[dim]Loaded {getattr(backend, 'model_name', 'model')} on {getattr(backend, 'device', 'unknown')}.[/dim]"
+        )
+
+
+def _load_optional_probe(path: Path | None):
+    folder = default_probe_dir() if path is None else path
+    if not folder.exists():
+        return None
+    if not (folder / "probe.joblib").is_file():
+        return None
+    return load_probe(folder)
