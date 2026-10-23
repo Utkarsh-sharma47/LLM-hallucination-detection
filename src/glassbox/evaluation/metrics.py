@@ -169,6 +169,93 @@ def bootstrap_interval(
     }
 
 
+def bootstrap_grouped_interval(
+    y_true: Sequence[int] | np.ndarray,
+    y_score: Sequence[float] | np.ndarray,
+    groups: Sequence[str],
+    *,
+    metric: str = "auroc",
+    threshold: float = 0.5,
+    n_resamples: int = 1000,
+    seed: int = 0,
+    min_per_class: int = 20,
+) -> dict[str, object]:
+    """Percentile interval from resampling question groups, not answer rows.
+
+    Every row that shares a group id is copied together. An interval is not
+    reported when the smaller class has fewer than ``min_per_class`` rows.
+    """
+    labels = np.asarray(y_true)
+    scores = np.asarray(y_score, dtype=float)
+    group_ids = [str(item) for item in groups]
+    if len(group_ids) != int(labels.shape[0]):
+        raise ValueError("groups must have one id for every scored row")
+    faithful = int(np.sum(labels == 0))
+    hallucinated = int(np.sum(labels == 1))
+    if min(faithful, hallucinated) < min_per_class:
+        return {
+            "metric": metric,
+            "point": None,
+            "low": None,
+            "high": None,
+            "n": int(labels.size),
+            "groups": len(set(group_ids)),
+            "unit": "question_group",
+            "note": (
+                "Confidence interval was not computed. "
+                f"The smaller class has {min(faithful, hallucinated)} rows, below {min_per_class}."
+            ),
+        }
+    point = compute_binary_metrics(labels, scores, threshold=threshold)[metric]
+    members: dict[str, list[int]] = {}
+    for index, group in enumerate(group_ids):
+        members.setdefault(group, []).append(index)
+    unique = list(members)
+    rng = np.random.default_rng(seed)
+    samples: list[float] = []
+    for _ in range(n_resamples):
+        drawn = rng.integers(0, len(unique), len(unique))
+        chosen: list[int] = []
+        for slot in drawn:
+            chosen.extend(members[unique[int(slot)]])
+        picked = np.asarray(chosen, dtype=int)
+        if set(labels[picked].tolist()) != {0, 1}:
+            continue
+        try:
+            samples.append(
+                compute_binary_metrics(labels[picked], scores[picked], threshold=threshold)[metric]
+            )
+        except ValueError:
+            continue
+    if len(samples) < 100:
+        return {
+            "metric": metric,
+            "point": point,
+            "low": None,
+            "high": None,
+            "n": int(labels.size),
+            "groups": len(unique),
+            "resamples_used": len(samples),
+            "unit": "question_group",
+            "note": "Too many resamples lacked both classes, so the interval was not reported.",
+        }
+    low, high = np.percentile(np.asarray(samples, dtype=np.float64), [2.5, 97.5])
+    return {
+        "metric": metric,
+        "point": point,
+        "low": float(low),
+        "high": float(high),
+        "n": int(labels.size),
+        "groups": len(unique),
+        "resamples_used": len(samples),
+        "unit": "question_group",
+        "note": (
+            "Percentile interval from resampling question groups with replacement. "
+            "Rows from the same group stay together. It does not transfer to another dataset."
+        ),
+    }
+
+
 def _as_unit_interval(value: float, name: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f"{name} must be a number")

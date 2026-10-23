@@ -19,13 +19,13 @@ On 23 October 2026, `pytest tests research_tests` was run again after the text-b
 glassbox smoke test: ok (version=0.1.0, phase=scaffold, model=Qwen/Qwen2.5-3B-Instruct, downloads=disabled)
 ```
 
-`--samples` and `--analyze-text` were run again while writing this page. Both exited 0 and did not construct a model backend. `--samples` prints the three built-in questions. The Australia answer above prints `CORRECT` and the sentence that hidden-state probing cannot be performed on text alone.
+On 24 October 2026, after `tests/test_generation_probe.py` was added, the same four commands were run again. `pytest tests research_tests` reported 82 passed. `ruff check` and `ruff format --check` passed. Smoke printed the same 3B scaffold line. `--samples` and `--analyze-text` exited 0 and did not construct a model backend. `--samples` prints the three built-in questions. The Australia answer above prints `CORRECT` and the sentence that hidden-state probing cannot be performed on text alone. `--analyze-text` reports `PROBE NOT TRAINED` because that mode does not apply a saved probe.
 
 `pytest` alone does not collect `research_tests/`. CI runs both trees.
 
 ## What each tree covers
 
-`tests/` is the demo and the pair-protocol trainer:
+`tests/` is the demo, the pair-protocol trainer, and the generation-protocol trainer:
 
 | File | Covers |
 | --- | --- |
@@ -39,6 +39,7 @@ glassbox smoke test: ok (version=0.1.0, phase=scaffold, model=Qwen/Qwen2.5-3B-In
 | `test_halueval_splits.py` | filters and disjoint question splits |
 | `test_truthfulqa_labels.py` | reference labels, paraphrase stays unvalidated, probe publish, lock message |
 | `test_research_baselines.py` | shared scaler, text baseline, tiny-sample interval refusal, ambiguous label, saturated experimental score still says risk is not assessed. No Qwen load. The saved-probe metadata check skips when the gitignored artifact is absent. |
+| `test_generation_probe.py` | generated-token alignment, question-group splits, evidence labels, TruthfulQA coverage, calibration refusal, protected run directories, and a synthetic generation probe that is not installed as the live probe. No Qwen load. |
 
 `research_tests/` is the scaffold:
 
@@ -61,7 +62,7 @@ glassbox smoke test: ok (version=0.1.0, phase=scaffold, model=Qwen/Qwen2.5-3B-In
 | CLI integration | `test_workflow.py`, `test_cli_modes.py`, with a fake backend or `--analyze-text` | No |
 | Smoke | `scripts/smoke_test.py` | No |
 | Model validation | [`.github/workflows/model-validation.yml`](../.github/workflows/model-validation.yml), manual | Yes, the chosen small model |
-| Probe evaluation | `python -m glassbox train-probe` | Local Qwen cache or an explicit download; not in CI |
+| Probe evaluation | `python -m glassbox train-probe` and `train-generation-probe` | Local Qwen cache or an explicit download; not in CI |
 
 There is no separate regression suite. A bug fix adds a unit test next to the file that failed. Generated-answer quality is not a unit test: the fake backend returns a fixed string so the suite does not depend on sampling.
 
@@ -84,6 +85,6 @@ On 23 October 2026 the local machine also ran:
 - `python -m glassbox audit-generations --run-id truthfulqa-label-audit-001` (no model load)
 - a scripted `python -m glassbox --offline` session, recorded under `artifacts/experiments/interactive-spotcheck.log` when that log exists
 
-`train-probe` was not repeated in this pass. The live probe remains `halueval-pair-002`.
+`train-probe` was not repeated in this pass. The live probe remains `halueval-pair-002`. `train-generation-probe` was run once, offline, as `halueval-generation-001`. That run is a research result in [EXPERIMENTS.md](EXPERIMENTS.md), not a unit test, and it did not replace the live probe.
 
 A future probe run is accepted only when the saved directory loads in a new `python -m glassbox --offline` process and the report distinguishes an experimental score from `RISK NOT ASSESSED`.

@@ -10,14 +10,15 @@ Version `0.1.0`. No GitHub release has been cut. The code license is unselected:
 
 | Area | State |
 | --- | --- |
-| Interactive demo on a cached causal LM | Working. Shipped demo model is `Qwen/Qwen2.5-0.5B-Instruct`. |
+| Interactive demo on a cached causal LM | Working. The configured model is `Qwen/Qwen2.5-0.5B-Instruct`. Weights are read from the local Hugging Face cache and are not in Git. |
 | Next-token probabilities and top alternatives | Working. Full-vocabulary export is opt-in. |
 | Curated string reference check | Working for [`configs/curated_facts.yaml`](configs/curated_facts.yaml) only. |
 | Hidden-state logistic probe | Pair-protocol probe in `artifacts/probes/final-hidden-state/` (gitignored). It discriminates supplied HaluEval answers. Calibration was rejected. The demo shows `EXPERIMENTAL PROBE SCORE` and `RISK NOT ASSESSED`. |
 | Text baselines | Length and gold-answer overlap explain most of the pair-task score. See [docs/RESEARCH.md](docs/RESEARCH.md). This is not a generation detector. |
-| TruthfulQA generation check | 40 generated answers, 5 labeled by a listed reference, 35 unvalidated. Not evidence for the pair AUROC. Early detection and activation intervention are not implemented. |
+| Generation probe | `halueval-generation-001` scored Qwen's own answers. Test AUROC 0.646 on 20 labeled rows, below TF-IDF. Calibration rejected. 590 of 720 answers stayed unvalidated. Not installed as the live probe. |
+| TruthfulQA generation check | 40 generated answers, 5 labeled by a listed reference, 35 unvalidated. A later 40-question pass labeled 6. Neither is evidence for the pair AUROC. Early detection and activation intervention are not implemented. |
 
-Details, conflicts, and the task list: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/ROADMAP.md](docs/ROADMAP.md), [docs/RESEARCH.md](docs/RESEARCH.md).
+The run index is [docs/EXPERIMENTS.md](docs/EXPERIMENTS.md). Method, conflicts, and the task list: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/ROADMAP.md](docs/ROADMAP.md), [docs/RESEARCH.md](docs/RESEARCH.md).
 
 ## Setup
 
@@ -66,7 +67,7 @@ python scripts/demo.py --samples
 
 `--offline` reads the Hugging Face cache and does not download weights. `--samples` and `--analyze-text` do not load a model. `--analyze-text` cannot see logits or hidden states.
 
-Without a calibrated probe the report says `PROBE NOT TRAINED` and `RISK NOT ASSESSED`. A question outside the curated file says `NO REFERENCE AVAILABLE`.
+With no probe loaded, the report says `PROBE NOT TRAINED` and `RISK NOT ASSESSED`. The live pair probe is loaded and uncalibrated, so the demo shows `EXPERIMENTAL PROBE SCORE` and `RISK NOT ASSESSED`. A factual-risk percentage is shown only when `calibration_validated` is true. No saved probe has passed that check. A question outside the curated file says `NO REFERENCE AVAILABLE`. The probe score and the curated check are separate.
 
 ## Demo model and probe command
 
@@ -76,9 +77,12 @@ Without a calibrated probe the report says `PROBE NOT TRAINED` and `RISK NOT ASS
 python -m glassbox --offline train-probe --max-questions 200 --run-id halueval-pair-002
 python -m glassbox text-baselines --max-questions 200 --run-id halueval-text-baselines-001
 python -m glassbox --offline eval-truthfulqa --max-questions 40
+python -m glassbox --offline train-generation-probe --max-questions 720 --external-questions 40 --run-id halueval-generation-001
 ```
 
-`text-baselines` does not load Qwen. Training is not part of routine tests. The live probe is `halueval-pair-002`, described in [docs/RESEARCH.md](docs/RESEARCH.md). It is a paired-answer experiment. Platt scaling failed the held-out ECE check, so the demo does not show a factual-risk percentage. `halueval-pair-001` is kept as `artifacts/probes/final-hidden-state.previous/`.
+`text-baselines` does not load Qwen. Training is not part of routine tests. The live probe is `halueval-pair-002` in `artifacts/probes/final-hidden-state/`, described in [docs/RESEARCH.md](docs/RESEARCH.md). `train-probe` replaces that directory. It is a paired-answer experiment. Platt scaling failed the held-out ECE check (0.114, limit 0.10), so the demo does not show a factual-risk percentage. `halueval-pair-001` is kept as `artifacts/probes/final-hidden-state.previous/`.
+
+`train-generation-probe` writes `artifacts/probes/generation-runs/<run-id>/` and refuses to replace the live probe. The same run id is refused once the directory exists. The recorded generation run is not a successful detector. See [docs/EXPERIMENTS.md](docs/EXPERIMENTS.md).
 
 A tiny checkpoint for a pipeline check, not a scientific run:
 
@@ -106,5 +110,7 @@ artifacts/        gitignored outputs
 - [Development](docs/DEVELOPMENT.md)
 - [Testing](docs/TESTING.md)
 - [Research](docs/RESEARCH.md)
+- [Experiments](docs/EXPERIMENTS.md)
+- [Datasets](docs/DATASETS.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Contributing](docs/CONTRIBUTING.md)

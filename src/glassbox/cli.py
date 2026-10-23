@@ -125,6 +125,24 @@ def main(argv: list[str] | None = None) -> int:
     audit.add_argument("--report", type=Path, default=None)
     audit.add_argument("--snapshot", type=Path, default=None)
     audit.add_argument("--run-id", default="truthfulqa-label-audit-001")
+    generate = commands.add_parser(
+        "train-generation-probe",
+        help="Train on Qwen's own answers. Does not replace the saved pair probe.",
+    )
+    generate.add_argument("--max-questions", type=int, default=240)
+    generate.add_argument("--external-questions", type=int, default=40)
+    generate.add_argument("--snapshot", type=Path, default=None)
+    generate.add_argument("--external-snapshot", type=Path, default=None)
+    generate.add_argument("--reviews", type=Path, default=None)
+    generate.add_argument("--seed", type=int, default=0)
+    generate.add_argument("--run-id", default="halueval-generation-001")
+    generate.add_argument("--output", type=Path, default=None)
+    generate.add_argument("--pair-probe", type=Path, default=None)
+    generate.add_argument(
+        "--allow-model-download",
+        action="store_true",
+        help="Arm a model download. Omit this to read the local cache only.",
+    )
     args = parser.parse_args(argv)
     if args.command == "train-probe":
         from glassbox.probes.training import train_command
@@ -142,6 +160,10 @@ def main(argv: list[str] | None = None) -> int:
         from glassbox.probes.generation_audit import audit_command
 
         return audit_command(args)
+    if args.command == "train-generation-probe":
+        from glassbox.probes.generation_train import train_generation_command
+
+        return train_generation_command(args)
     console = make_console()
     if args.samples:
         render_samples(console)
