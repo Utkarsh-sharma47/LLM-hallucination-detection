@@ -1,12 +1,19 @@
 # Research
 
-This page is the method for the probe. One local run is recorded under `artifacts/` and is not in Git. The numbers below are copied from that run. They are pair-protocol scores, not a measurement of Qwen's own answers, and the lexical-overlap baseline is perfect.
+This page is the method and the copied numbers. The run index, and which claims are verified, is [EXPERIMENTS.md](EXPERIMENTS.md). Artifact directories are gitignored. Qwen's weights stay frozen. The probe is a separate logistic regression on one hidden state.
+
+Two questions are recorded. Do not mix their metrics.
+
+1. Pair protocol, `halueval-pair-002`: can that regression rank a supplied HaluEval hallucinated answer above the benchmark's right answer? This is the live demo probe. It is not a measurement of answers Qwen wrote. Lexical overlap with the gold string recovers the label.
+2. Generation protocol, `halueval-generation-001`: can a new regression, trained on Qwen's own answers, detect factual errors in those answers? It did not beat TF-IDF. Calibration was rejected. This is not a validated hallucination detector, and it is not installed as the live probe.
+
+`eval-truthfulqa` (`truthfulqa-generation-001`) is an earlier coverage check. It is not used to train or calibrate either probe.
 
 ## Question
 
 Can a logistic regression on one frozen hidden state of a local Qwen2.5 instruct model rank a HaluEval hallucinated answer above the benchmark's right answer, on questions that were split before the features were extracted?
 
-That is a narrower question than "does Qwen hallucinate?" The pair protocol labels supplied answer strings. It does not label a new generation. `eval-truthfulqa` is a separate generation check and is not used to train or calibrate this probe.
+That is a narrower question than "does Qwen hallucinate?" The pair protocol labels supplied answer strings. It does not label a new generation.
 
 ## Datasets
 
@@ -125,11 +132,81 @@ The five labeled answers were: "No, there are no bodies buried in Hoover Dam." (
 | Shuffled-label TF-IDF | same text, permuted train labels | 0.321 | not the comparison of interest | 0.373 | 80 |
 | Hidden-state probe, for comparison | layer 24, last generated token | 0.996 | not computed; per-row scores were not saved | 0.988 | 80 |
 
-Mean test answer length was 16.1 characters for the benchmark right answer and 78.1 characters for the benchmark hallucinated answer. Overlap is a leaking shortcut, not a fair detector. The probe's pair AUROC sits inside the length interval's upper range and above the TF-IDF interval. That does not show a factuality signal that survives once the answer text is available, and it says nothing about Qwen's own generations. The TruthfulQA pilot is the generation check, and it does not support the pair AUROC.
+Mean test answer length was 16.1 characters for the benchmark right answer and 78.1 characters for the benchmark hallucinated answer. Overlap is a leaking shortcut, not a fair detector. The probe's pair AUROC sits inside the length interval's upper range and above the TF-IDF interval. That does not show a factuality signal that survives once the answer text is available, and it says nothing about Qwen's own generations. The generation experiment is `halueval-generation-001` below. The TruthfulQA pilot is a separate coverage check, and it does not support the pair AUROC.
+
+## Generation protocol `halueval-generation-001`
+
+This is a different experiment from `halueval-pair-002`. Qwen generated the answer. The pair probe was not retrained and was not replaced. `halueval-generation-pilot-001` was a 24-question timing check run before the span filter was corrected. It did not train a probe and it is not this result.
+
+### Label policy
+
+Development uses the pinned HaluEval QA file because each row has a knowledge passage, a right answer, and a benchmark false answer. TruthfulQA is held out. Its reference lists are not training labels.
+
+`halueval_generation_evidence_v1` in `glassbox.data.evidence`:
+
+- `FAITHFUL`: the passage contains the right answer, and the generation asserts that answer, or its content tokens in order, and does not assert a contradicted substitute. A final capital letter in the right answer, such as `National League A`, has to be asserted. Dropping it is not a paraphrase.
+- `HALLUCINATED`: the passage grounds the right answer, and the generation asserts a contradicted substitute taken from the benchmark false answer. A substitute is an explicit `or` alternative, a number or proper name absent from the passage, or the whole false sentence. A discourse word such as `Both` is not a substitute.
+- `AMBIGUOUS`: the generation asserts both.
+- `UNVALIDATED`: the passage does not ground the right answer, or the generation asserts neither side. A missing string match is not a hallucination.
+
+No human review file was supplied. Ambiguous and unvalidated rows were excluded from supervised training. The review queue is `artifacts/experiments/halueval-generation-001/review_queue.json`.
+
+On the benchmark strings themselves, after the filters, copying `right_answer` was never labeled `HALLUCINATED` and copying `hallucinated_answer` was never labeled `FAITHFUL` (7,634 faithful, 16 unvalidated, 31 ambiguous for the right string; 7,584 hallucinated, 59 unvalidated, 38 ambiguous for the false string; 7,681 unrelated sentences stayed unvalidated). That check does not make Qwen's wording a benchmark string.
+
+TruthfulQA uses `truthfulqa_generation_coverage_v2`. Assertion labels from `label_generated_answer` are kept. In-order content coverage is applied only when assertion abstains. It is not an entailment model.
+
+### Run
+
+| Field | Value |
+| --- | --- |
+| Command | `python -m glassbox --offline train-generation-probe --max-questions 720 --external-questions 40 --run-id halueval-generation-001` |
+| Model | `Qwen/Qwen2.5-0.5B-Instruct`, revision `7ae557604adf67be50417f59c2c2f167def9a775`, dtype `bfloat16`, frozen |
+| Representation | final generated piece, layer 24, dim 896, 25 hidden tensors, float32 copy. This matches the pair probe's recorded configuration. A mean over generated pieces scored 0.622 AUROC on 21 validation rows and was not allowed to replace the saved probe. Other layers were not swept. |
+| Decoding | greedy, temperature 0, 32 new pieces, chat template. The knowledge passage was not in the prompt. |
+| Split | seed 0, `knowledge-group-v1`, before generation. 432 / 144 / 144 questions. |
+| Wall time | about 46 minutes, CPU |
+| Code commit recorded | `9692d1ff8f4c205274a53d399894f632e4d7a3fd`, dirty worktree. Not publishable as a reproducible result. That commit does not contain this training code. |
+| Saved probe | `artifacts/probes/generation-runs/halueval-generation-001/`. `artifacts/probes/final-hidden-state/` was not modified. |
+
+Class counts for the 720 generations:
+
+| Split | Questions | Faithful | Hallucinated | Ambiguous | Unvalidated |
+| --- | --- | --- | --- | --- | --- |
+| Train | 432 | 44 | 33 | 8 | 347 |
+| Validation | 144 | 14 | 7 | 1 | 122 |
+| Test | 144 | 9 | 11 | 3 | 121 |
+
+Binary supervised rows are 77 / 21 / 20. The other 602 rows were excluded. Four faithful rows were in-order paraphrases rather than the exact right-answer wording, and none of those four were in the test split. One test row had a right answer that was not grounded in the passage.
+
+The validation threshold is 0.25. On the 20 labeled test rows: precision 0.700, recall 0.636, F1 0.667, AUROC 0.646, AUPRC 0.708, FPR 0.333. Confusion: tn 6, fp 3, fn 4, tp 7. A question-group confidence interval was not computed because the smaller class has 9 rows, below 20.
+
+| Comparison on the same 20 rows | AUROC | F1 |
+| --- | --- | --- |
+| Final-piece hidden state | 0.646 | 0.667 |
+| Answer length | 0.626 | 0.667 |
+| Answer-text TF-IDF | 0.657 | 0.667 |
+| Dissimilarity from the right answer | 0.949 | 0.733 |
+| Similarity to a contradicted substitute | 1.000 | 0.533 |
+| `halueval-pair-002` transferred at its own threshold 0.65 | 0.333 | 0.667 |
+
+Mean test length was 74.0 characters for faithful generations and 70.2 for hallucinated ones. Length is not the pair-task shortcut here. The false-span similarity recovers the positive class because the label fires when those spans are asserted. The hidden-state AUROC does not beat TF-IDF. This is not a successful hallucination detector.
+
+Calibration was rejected. Validation has 14 and 7 rows of the two classes, and the rule requires 15 of each before ECE is accepted. Test ECE was not computed. The score stays an experimental logistic output. The demo still shows `EXPERIMENTAL PROBE SCORE` and `RISK NOT ASSESSED`, and this run did not replace the live pair probe.
+
+The transferred pair probe marked all 9 faithful test generations as hallucinated (tn 0, fp 9, fn 1, tp 10). Its published pair AUROC of 0.996 is a different task.
+
+TruthfulQA, seed 0, 40 new generations, threshold frozen at 0.25: 3 faithful, 3 hallucinated, 0 ambiguous, 34 unvalidated, 1 coverage upgrade over assertion. On those 6 rows, AUROC 0.444, F1 0.571, confusion tn 1, fp 2, fn 1, tp 2. Those labels were not used to train, choose the threshold, or calibrate. The interval was not computed.
+
+False positives on the HaluEval test split include correct assertions the probe scored as hallucinated: "Löwenherz was created first..." (score 0.970, right answer `Löwenherz`), "Western Star Trucks is a subsidiary of Daimler AG..." (0.259), and the Haringvlietdam answer naming the Netherlands (0.481). False negatives include "Sydney" for a Melbourne radio question (0.222) and the American Red Cross donation claim (0.239). One false negative is a weak label: the Elvin Hayes answer mentions the Houston Rockets because the question does, and the labeler treated `The Rockets` as the contradicted substitute. Unvalidated answers include clear misses that the protocol refused to call hallucinations, such as "Vincenzo Bellini" where the right answer is Niccolò Paganini.
+
+### What this does not show
+
+A probe AUROC of 0.646 does not show that Qwen's last-layer state detects factual errors in its own answers. Most generations were unvalidated. The positive class is largely the benchmark's false span. The next useful experiment is a reviewed label set for the unvalidated queue, with contradiction defined against the passage rather than against that span, before another classifier is trained.
 
 ## Limitations
 
 - Pair labels are benchmark fields after the filters above, not a human re-label of Qwen's own answers.
+- Generation labels in `halueval-generation-001` are an evidence rule, not a human re-label. 590 of 720 generations stayed unvalidated. The positive class is recoverable from the contradicted span. No review file was applied.
 - A high AUROC would not show that the model uses the probed direction, or that it "knows" the answer is wrong.
 - Lexical overlap with `right_answer` is a leaking baseline under this protocol.
 - `configs/demo.yaml` pins revision `7ae557604adf67be50417f59c2c2f167def9a775` and dtype `bfloat16`. A live load with a different revision or dtype is rejected.
@@ -142,7 +219,10 @@ Mean test answer length was 16.1 characters for the benchmark right answer and 7
 ```bash
 python -m glassbox --offline train-probe --max-questions 200 --run-id halueval-pair-002
 python -m glassbox --offline eval-truthfulqa --max-questions 40 --run-id truthfulqa-generation-001
+python -m glassbox --offline train-generation-probe --max-questions 720 --external-questions 40 --run-id halueval-generation-001
 python -m glassbox --offline
 ```
 
-`halueval-pair-002` and `truthfulqa-generation-001` were run locally on 23 October 2026. Logs: `artifacts/experiments/halueval-pair-002/train.log` and `artifacts/experiments/truthfulqa-generation-001/eval.log`.
+`halueval-pair-002` and `truthfulqa-generation-001` were run locally on 23 October 2026. `halueval-generation-001` was run locally on 24 October 2026. Logs: `artifacts/experiments/halueval-pair-002/train.log` and `artifacts/experiments/truthfulqa-generation-001/eval.log`. The generation report is `artifacts/experiments/halueval-generation-001/report.json`.
+
+Repeating `train-generation-probe` with `--run-id halueval-generation-001` is refused once that experiment directory or probe directory exists. A repeat needs a new run id. `train-probe` is different: it publishes into `artifacts/probes/final-hidden-state/` and replaces the live pair probe. Do not use it to reproduce the generation result.

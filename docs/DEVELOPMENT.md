@@ -34,13 +34,17 @@ The hook config is [`.pre-commit-config.yaml`](../.pre-commit-config.yaml): whit
 | File | Who reads it |
 | --- | --- |
 | `configs/default.yaml` | `load_config()`, smoke test, research tests |
-| `configs/demo.yaml` | `python -m glassbox` and `train-probe` |
+| `configs/demo.yaml` | `python -m glassbox`, `train-probe`, and `train-generation-probe` |
 | `configs/curated_facts.yaml` | reference check only |
 | `.env` | not read by the demo or the smoke test |
 
 `.env.example` documents `HF_TOKEN` and `HF_HOME`. `glassbox.env.load_env_file` can load a file, and nothing in the CLI calls it today. The smoke test does not read `.env` and does not print variable values.
 
-Demo flags that change a run: `--offline`, `--model`, `--probe`, `--max-new-tokens`, `--distribution-export {topk,full}`, `--config`, `--references`. Training flags: `--max-questions` (default 240), `--seed` (default 0), `--download-data`, `--snapshot`, `--run-id`, `--output`.
+Demo flags that change a run: `--offline`, `--model`, `--probe`, `--max-new-tokens`, `--distribution-export {topk,full}`, `--config`, `--references`. `--offline` belongs on the parent parser, before the subcommand.
+
+`train-probe` flags: `--max-questions` (default 240), `--seed` (default 0), `--download-data`, `--snapshot`, `--run-id` (default `halueval-pair-001`), `--output`. The run id names the experiment record. The probe is still published to `artifacts/probes/final-hidden-state/` unless `--output` is set. The live artifact was saved with `--run-id halueval-pair-002`. A new `train-probe` replaces that directory.
+
+`train-generation-probe` flags: `--max-questions` (default 240), `--external-questions` (default 40), `--seed` (default 0), `--snapshot`, `--external-snapshot`, `--reviews`, `--run-id` (default `halueval-generation-001`), `--output`, `--pair-probe`, `--allow-model-download`. The parent `--offline` flag reads the cache. Combining `--offline` with `--allow-model-download` is an error. This command writes `artifacts/probes/generation-runs/<run-id>/` and refuses an existing directory, including the live pair-probe names. The recorded scientific run passed `--max-questions 720`. The default 240 is a smaller run, not that result.
 
 The demo config pins dtype `bfloat16` so training and interactive inference use the same representation. `resolve_dtype("auto")` still picks float32 when the estimated weights plus 1 GiB headroom fit, otherwise bfloat16. A probe trained in one dtype is rejected for the other when the artifact stored a dtype.
 
@@ -89,7 +93,7 @@ The model validation workflow is manual. Do not add a Qwen download or `train-pr
 
 ## Branches in this integration
 
-`main` contains `7e5d70f`, the merge of the CI pull request. The published history still starts at `9b8bcc4` (`Initial commit`). Do not rewrite that commit.
+`main` is `9692d1ff8f4c205274a53d399894f632e4d7a3fd`, the merge of pull request 10. The published history still starts at `9b8bcc4` (`Initial commit`). Do not rewrite that commit.
 
 | Branch | Role |
 | --- | --- |
@@ -123,5 +127,6 @@ Pull requests merged into `main`, in order:
 - https://github.com/Utkarsh-sharma47/LLM-hallucination-detection/pull/2 (`feat/glassbox`) merged as `50dcc1a`
 - https://github.com/Utkarsh-sharma47/LLM-hallucination-detection/pull/3 (`docs/project-documentation`) merged as `008a827`
 - https://github.com/Utkarsh-sharma47/LLM-hallucination-detection/pull/4 (`ci/github-actions`) merged as `7e5d70f`
+- https://github.com/Utkarsh-sharma47/LLM-hallucination-detection/pull/10 (`docs/record-merged-history`) merged as `9692d1f`
 
-The `checks` job on pull request 4 completed with success before that merge. Routine CI does not download Qwen. The manual model workflow has not been run.
+The `checks` job on pull request 4 completed with success before that merge. Routine CI does not download Qwen. The manual model workflow has not been run. The 23 October test list above is the state of `46a1194`, not the current tree. Current commands and the later generation-probe tests are in [TESTING.md](TESTING.md).

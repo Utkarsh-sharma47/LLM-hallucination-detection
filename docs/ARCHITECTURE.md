@@ -25,11 +25,18 @@ cli.py
   ├─ present.py              Rich report
   └─ reporting.py            plain-text menu views and Markdown
 
-probes/training.py
+probes/training.py          pair protocol; publishes the live probe
   ├─ data/halueval.py        pinned HaluEval QA pairs and splits
   ├─ models/backend.py       hidden state at the registered position
   ├─ probes/scoring.py       threshold, Platt scaling, baselines
   └─ evaluation/             metrics and run records
+
+probes/generation_train.py  Qwen generates the answer; does not publish the live probe
+  ├─ data/evidence.py        evidence labels and optional human reviews
+  ├─ data/generation_splits.py
+  │                          knowledge-group split, frozen before generation
+  └─ probes/generation_eval.py
+                             baselines, calibration decision, provenance
 
 config.py, guards.py, smoke.py, data/loading.py
   scaffold only; smoke and research tests
@@ -60,11 +67,22 @@ Menu commands `t`, `p`, `v`, `d`, and `e` read the last `TurnRecord`. They do no
 4. Encode the demo prompt plus the supplied answer. The knowledge passage is stored and is not fed to the model.
 5. Save the pre-registered final layer (`layer_index: -1` resolved to the last hidden state). A validation table of other layers is recorded and does not choose the saved layer.
 6. Fit logistic regression on training rows only after both classes have at least 20 rows. Choose the threshold on validation. Fit Platt scaling on validation only. Accept calibration only when validation and test each have at least 15 rows per class and test ECE is at most 0.10.
-7. Write the probe under `artifacts/probes/final-hidden-state/` and, when test metrics exist, `artifacts/experiments/<run_id>/record.json`.
+7. Stage the probe, then replace `artifacts/probes/final-hidden-state/`. When test metrics exist, also write `artifacts/experiments/<run_id>/record.json`. The default `--run-id` is `halueval-pair-001`, but the run id does not choose the probe directory. A new `train-probe` replaces the live probe. The current live directory is `halueval-pair-002`. `halueval-pair-001` is kept in `artifacts/probes/final-hidden-state.previous/`. Both are gitignored. `calibration_validated` is false on the live probe (test ECE 0.114), so the demo must not treat the score as a factual-risk percentage. Numbers are in [RESEARCH.md](RESEARCH.md).
 
-A local `halueval-pair-001` directory is already on disk and gitignored. Its calibration flag is false, so the demo must not treat the score as a factual-risk percentage. Numbers are in [RESEARCH.md](RESEARCH.md).
+The positive class is the HaluEval `hallucinated_answer` string. It is not a new judgment of a Qwen generation. Qwen's pretrained weights are not updated. The learned parameters are the logistic weights, the training-set scaler, and, only if calibration is accepted, the Platt map.
 
-The positive class is the HaluEval `hallucinated_answer` string. It is not a new judgment of a Qwen generation.
+## Generation training flow
+
+`python -m glassbox --offline train-generation-probe` is a different command. It does not call `publish_probe`.
+
+1. Read the same pinned HaluEval file. Assign `knowledge-group-v1` splits before any model call. Questions that share a passage stay together. TruthfulQA, when present, is an external set and is not used to train, choose the threshold, or calibrate.
+2. Load the cached demo model. `--offline` plus `--allow-model-download` is an error. Without `--allow-model-download` the command reads the cache only.
+3. Generate an answer with temperature 0. The knowledge passage is not in the prompt. A second forward pass reads the hidden state at the last generated piece (`layer_index: -1`). A mean over generated pieces is stored for audit and does not choose the saved probe.
+4. Label with `halueval_generation_evidence_v1`. `AMBIGUOUS` and `UNVALIDATED` stay out of the binary trainer. A missing human-review file does not invent labels.
+5. Fit the same logistic regression and training-only scaler. Choose the threshold on the generation validation split. Apply the same ECE rule. Reject calibration when either split has fewer than 15 rows per class.
+6. Write `artifacts/probes/generation-runs/<run-id>/` and `artifacts/experiments/<run-id>/`. Refuse those paths if they exist, and refuse `final-hidden-state`, `final-hidden-state.previous`, `final-hidden-state.staging`, and `final-hidden-state.incoming`.
+
+The recorded generation run did not beat its text baselines. Loading that directory with `--probe` would still show an experimental score, because calibration was rejected. The demo's default directory remains the pair probe. Details are in [EXPERIMENTS.md](EXPERIMENTS.md).
 
 ## Shared behavior, and where it is duplicated
 
