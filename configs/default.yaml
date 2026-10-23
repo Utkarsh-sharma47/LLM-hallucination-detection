@@ -1,0 +1,42 @@
+# Shipped Glass Box defaults.
+# Status: scaffold. This file does not enable downloads and does not describe a completed run.
+# Replace model.revision with a 40-character commit hash before any recorded experiment.
+
+model:
+  name: Qwen/Qwen2.5-3B-Instruct
+  revision: main
+  allow_download: false
+
+data:
+  # HaluEval QA is the initial exploration set. TruthfulQA is an additional
+  # evaluation set. Their labels do not mean the same thing; do not pool them.
+  exploration_dataset: halueval_qa
+  evaluation_datasets:
+    - halueval_qa
+    - truthfulqa
+  allow_download: false
+  seed: 0
+
+probe:
+  kind: logistic_regression
+  freeze_backbone: true
+  # Untested initial classifier settings. They are not tuned hyperparameters.
+  class_weight: balanced
+  max_iter: 1000
+  random_state: 0
+
+task:
+  name: short_factual_qa
+  description: Short, verifiable factual question answering.
+
+metrics:
+  - precision
+  - recall
+  - f1
+  - auroc
+  - auprc
+  - false_positive_rate
+  - early_warning_lead
+
+artifacts_dir: artifacts
+phase: scaffold
