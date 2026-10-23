@@ -118,4 +118,10 @@ On 23 October 2026, at `46a1194`:
 - `python -m glassbox --samples` exited 0.
 - `python -m glassbox --analyze-text --question "What is the capital of Australia?" --answer "The capital of Australia is Canberra."` exited 0. The detector line was `PROBE NOT TRAINED` because this mode does not apply the saved probe. The curated check marked the answer correct.
 
-GitHub Actions had not run yet at the time those commands were recorded. A later pull request is the place that records the Actions result.
+Pull requests opened for this integration, in merge order:
+
+- https://github.com/Utkarsh-sharma47/LLM-hallucination-detection/pull/2 (`feat/glassbox`)
+- https://github.com/Utkarsh-sharma47/LLM-hallucination-detection/pull/3 (`docs/project-documentation`)
+- https://github.com/Utkarsh-sharma47/LLM-hallucination-detection/pull/4 (`ci/github-actions`)
+
+Pull request 4 is the full tree, so its Actions run is the check before `main` moves. Routine CI does not download Qwen.

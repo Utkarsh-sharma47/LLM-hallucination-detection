@@ -1,0 +1,25 @@
+name: Bug
+description: Incorrect behavior, with the command that shows it
+title: "[bug] "
+labels: []
+body:
+  - type: textarea
+    id: command
+    attributes:
+      label: Command
+      description: The exact command and the exit code or output that is wrong.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Config and version
+      description: demo.yaml or default.yaml, and whether a model was loaded. Do not paste tokens.
+    validations:
+      required: false

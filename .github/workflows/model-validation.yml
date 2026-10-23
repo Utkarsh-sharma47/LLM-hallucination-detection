@@ -1,0 +1,69 @@
+name: Model validation
+
+# Manual only. Do not trigger this from pull requests.
+# The default model is a tiny checkpoint used to prove the CLI can load weights.
+# Qwen training and full evaluation stay on a machine with the weights cached.
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Hugging Face model id
+        default: sshleifer/tiny-gpt2
+        type: string
+      max_new_tokens:
+        description: Generation cap
+        default: "8"
+        type: string
+      cached_qwen_eval:
+        description: Score the cached 0.5B model only when weights are already present
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    name: one short generation
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install CPU PyTorch
+        run: python -m pip install --upgrade pip && python -m pip install torch==2.14.1 --index-url https://download.pytorch.org/whl/cpu
+      - name: Install package
+        run: python -m pip install -e ".[dev]"
+      - name: Generate once
+        env:
+          GLASSBOX_MODEL: ${{ inputs.model }}
+          GLASSBOX_MAX_NEW_TOKENS: ${{ inputs.max_new_tokens }}
+        run: >
+          python -m glassbox
+          --model "$GLASSBOX_MODEL"
+          --max-new-tokens "$GLASSBOX_MAX_NEW_TOKENS"
+          --once
+          --question "What is the capital of Australia?"
+
+  cached-qwen:
+    name: cached Qwen evaluation
+    if: ${{ inputs.cached_qwen_eval }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install CPU PyTorch
+        run: python -m pip install --upgrade pip && python -m pip install torch==2.14.1 --index-url https://download.pytorch.org/whl/cpu
+      - name: Install package
+        run: python -m pip install -e ".[dev]"
+      - name: Evaluate only a cached snapshot
+        env:
+          HF_HUB_OFFLINE: "1"
+          TRANSFORMERS_OFFLINE: "1"
+        run: python scripts/cached_qwen_eval.py

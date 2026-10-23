@@ -1,0 +1,29 @@
+name: Task
+description: A roadmap item or a smaller change
+title: "[task] "
+labels: []
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome
+      description: What will be true when this is done, in a form a test or a command can check.
+    validations:
+      required: true
+  - type: textarea
+    id: depends
+    attributes:
+      label: Depends on
+      description: Other tasks or files. Say none if it is independent.
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - P0
+        - P1
+        - P2
+    validations:
+      required: true
