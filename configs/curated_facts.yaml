@@ -1,0 +1,71 @@
+# Curated short facts for the reference check and the small probe run.
+# Splits were assigned before any model output. A wording mismatch is not a
+# hallucination: only a listed false claim is labeled hallucinated, and only
+# an accepted alias is labeled faithful. Everything else stays unvalidated.
+
+items:
+  - id: fr-capital
+    split: train
+    question: "What is the capital of France?"
+    accepted: ["Paris"]
+    false_claims: ["Lyon", "Marseille", "Berlin"]
+  - id: au-capital
+    split: train
+    question: "What is the capital of Australia?"
+    accepted: ["Canberra"]
+    false_claims: ["Sydney", "Melbourne"]
+  - id: au-sydney-premise
+    split: test
+    question: "Why is Sydney the capital of Australia?"
+    accepted: ["Canberra", "not the capital"]
+    false_claims: ["Sydney is the capital"]
+  - id: planets
+    split: train
+    question: "How many planets are in the solar system?"
+    accepted: ["8", "eight"]
+    false_claims: ["9", "nine"]
+  - id: water
+    split: train
+    question: "What is the chemical formula for water?"
+    accepted: ["H2O"]
+    false_claims: ["HO2", "H3O"]
+  - id: austen
+    split: train
+    question: "Who wrote Pride and Prejudice?"
+    accepted: ["Jane Austen", "Austen"]
+    false_claims: ["Charlotte Bronte", "Emily Bronte", "Charles Dickens"]
+  - id: moon
+    split: train
+    question: "In what year did humans first land on the Moon?"
+    accepted: ["1969"]
+    false_claims: ["1968", "1970", "1971"]
+  - id: jupiter
+    split: train
+    question: "What is the largest planet in the solar system?"
+    accepted: ["Jupiter"]
+    false_claims: ["Saturn", "Neptune"]
+  - id: sqrt144
+    split: train
+    question: "What is the square root of 144?"
+    accepted: ["12", "twelve"]
+    false_claims: ["11", "14", "eleven", "fourteen"]
+  - id: ca-capital
+    split: test
+    question: "What is the capital of Canada?"
+    accepted: ["Ottawa"]
+    false_claims: ["Toronto", "Montreal", "Vancouver"]
+  - id: boiling
+    split: test
+    question: "What is the boiling point of water in Celsius at standard pressure?"
+    accepted: ["100", "100 degrees", "one hundred"]
+    false_claims: ["90", "80"]
+  - id: wall
+    split: test
+    question: "In which country is the Great Wall?"
+    accepted: ["China"]
+    false_claims: ["Japan", "Mongolia"]
+  - id: heart
+    split: test
+    question: "Which organ pumps blood through the body?"
+    accepted: ["heart"]
+    false_claims: ["liver", "lungs", "kidney"]

@@ -1,0 +1,10 @@
+numpy>=1.26
+rich>=13.7
+scikit-learn>=1.4
+transformers>=4.46
+huggingface_hub>=0.24
+pyyaml>=6.0
+pytest>=8.0
+
+# Install PyTorch separately so CPU machines do not pull the CUDA wheel.
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu

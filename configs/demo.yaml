@@ -1,0 +1,23 @@
+# Runnable demo settings.
+# This machine has no CUDA device and only a few GiB of RAM free, so the
+# configured model is Qwen2.5-0.5B-Instruct. The launcher also prints the
+# largest Qwen2.5 instruct model that fits. Override with --model.
+# Launching the demo is an explicit request to load weights.
+
+model:
+  name: Qwen/Qwen2.5-0.5B-Instruct
+  revision: 7ae557604adf67be50417f59c2c2f167def9a775
+  device: auto
+  dtype: bfloat16
+
+generation:
+  max_new_tokens: 32
+  temperature: 0.0
+  top_k: 5
+  layer_index: -1
+  # Last answer token, matching the probe's training position. The prompt-only
+  # position does not see the answer that the label refers to.
+  position: last_generated_token
+
+references: configs/curated_facts.yaml
+probe_dir: null

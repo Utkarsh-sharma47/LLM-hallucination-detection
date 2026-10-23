@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "glassbox"
+version = "0.1.0"
+description = "Terminal demo for inspecting LLM generation and hallucination signals"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.26",
+    "rich>=13.7",
+    "scikit-learn>=1.4",
+    "transformers>=4.46",
+    "huggingface_hub>=0.24",
+    "pyyaml>=6.0",
+    "torch>=2.2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.17.2"]
+
+[project.scripts]
+glassbox = "glassbox.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+# Line length is not enforced yet. training.py, present.py, and cli.py exceed 100
+# columns. Remove this ignore after that wrap; see docs/ROADMAP.md.
+ignore = ["E501"]
