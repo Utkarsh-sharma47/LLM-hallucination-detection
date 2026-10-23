@@ -32,6 +32,46 @@ def feature_index(prompt_tokens: int, answer_tokens: int, position: str) -> int:
     raise ValueError(f"Unknown hidden-state position {position!r}")
 
 
+def describe_generated_position(prompt_tokens: int, answer_tokens: int) -> dict[str, object]:
+    """Document the index of the final generated piece.
+
+    The index is inside the answer span. It is not the last prompt piece, and
+    it is not a pool over the answer.
+    """
+    index = feature_index(prompt_tokens, answer_tokens, "last_generated_token")
+    return {
+        "position": "last_generated_token",
+        "sequence_index": index,
+        "prompt_piece_count": prompt_tokens,
+        "generated_piece_count": answer_tokens,
+        "index_is_inside_generated_span": index >= prompt_tokens,
+        "aggregation": "final generated piece only",
+    }
+
+
+def mean_answer_vector(
+    hidden_states: Sequence[Any],
+    prompt_tokens: int,
+    answer_tokens: int,
+    layer: int,
+) -> np.ndarray:
+    """Mean of one layer over generated pieces only.
+
+    Prompt pieces are outside the slice. This vector is an audit feature. The
+    saved probe keeps the single final generated piece.
+    """
+    end = feature_index(prompt_tokens, answer_tokens, "last_generated_token") + 1
+    start = prompt_tokens
+    if start >= end:
+        raise ValueError("the generated span is empty")
+    resolved = resolve_layer(len(hidden_states), layer)
+    state = hidden_states[resolved]
+    if end > state.shape[1]:
+        raise ValueError("answer span is outside the sequence")
+    chunk = state[0, start:end]
+    return chunk.detach().float().mean(dim=0).cpu().numpy().copy()
+
+
 def resolve_layer(layer_count: int, layer_index: int) -> int:
     """Resolve a possibly negative layer index against ``hidden_states``."""
     if isinstance(layer_index, bool) or not isinstance(layer_index, int):
