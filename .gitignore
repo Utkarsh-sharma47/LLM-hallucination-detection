@@ -12,8 +12,8 @@ dist/
 build/
 artifacts/**
 !artifacts/.gitkeep
-outputs/
-models/
+/outputs/
+/models/
 *.safetensors
 *.bin
 *.pt
