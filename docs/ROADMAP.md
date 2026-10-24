@@ -52,9 +52,9 @@ Owners are unassigned unless noted. The GitHub repository owner is the default r
 
 ### 7. Generation-protocol labels
 
-- **Status:** pilot only. `truthfulqa-generation-001` scored 40 generations. Five matched a listed reference and 35 stayed unvalidated. Pair-protocol AUROC is not evidence for this task. `truthfulqa-label-audit-001` reapplied the current labeler, including an ambiguous class, and found no disagreements. The original metrics were not recomputed.
-- **Depends on:** task 1, so the pair protocol is not confused with this one.
-- **Acceptance:** a written rubric, labels that are not "the strings differ," a split frozen before generation, and a report that does not reuse pair-protocol metrics as if they were the same experiment. The pilot does not meet the sample-size part of that bar.
+- **Status:** dataset contract is in code. `freeze-generation-split` writes TruthfulQA question ids before labeling. `build-generation-dataset` stores the seed, dataset SHA-256, model name, revision, and dtype with each row, and keeps ambiguous and unvalidated answers in the file. It does not train a probe and does not write `artifacts/probes/final-hidden-state/`. `truthfulqa-generation-001` remains the 40-answer pilot: 3 faithful, 2 hallucinated, 0 ambiguous, 35 unvalidated. Both binary classes are below the interval minimum of 20, so that pilot is not a detector result. Pair-protocol metrics are not copied into the dataset record. `truthfulqa-label-audit-001` reapplied the current labeler and found no disagreements. The original metrics were not recomputed.
+- **Depends on:** task 1, so the pair protocol is not confused with this one. A new generation pass still needs the cached 0.5B weights and is not part of CI.
+- **Acceptance:** a written rubric, labels that are not "the strings differ," a split frozen before generation, and a report that does not reuse pair-protocol metrics as if they were the same experiment. The rubric and the dataset writer meet that contract. The pilot does not meet the sample-size part of that bar.
 - **Owner:** unassigned.
 
 ### 8. Early detection

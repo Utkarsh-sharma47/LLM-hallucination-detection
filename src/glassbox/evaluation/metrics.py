@@ -19,6 +19,10 @@ from sklearn.metrics import (
 
 from glassbox.constants import CLASSIFICATION_METRICS
 
+# Smaller labeled classes do not receive a confidence interval. The generation
+# dataset records this same minimum and does not lower it.
+BOOTSTRAP_MIN_PER_CLASS = 20
+
 
 def compute_binary_metrics(
     y_true: Sequence[int] | np.ndarray,
@@ -104,7 +108,7 @@ def bootstrap_interval(
     threshold: float = 0.5,
     n_resamples: int = 1000,
     seed: int = 0,
-    min_per_class: int = 20,
+    min_per_class: int = BOOTSTRAP_MIN_PER_CLASS,
 ) -> dict[str, object]:
     """Percentile interval from resampling rows that were already scored.
 

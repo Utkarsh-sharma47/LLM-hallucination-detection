@@ -76,9 +76,13 @@ Without a calibrated probe the report says `PROBE NOT TRAINED` and `RISK NOT ASS
 python -m glassbox --offline train-probe --max-questions 200 --run-id halueval-pair-002
 python -m glassbox text-baselines --max-questions 200 --run-id halueval-text-baselines-001
 python -m glassbox --offline eval-truthfulqa --max-questions 40
+python -m glassbox freeze-generation-split --max-questions 40 --seed 0
+python -m glassbox build-generation-dataset --split path/to/split.json --answers path/to/answers.json \
+  --model-name Qwen/Qwen2.5-0.5B-Instruct \
+  --model-revision 7ae557604adf67be50417f59c2c2f167def9a775 --dtype bfloat16
 ```
 
-`text-baselines` does not load Qwen. Training is not part of routine tests. The live probe is `halueval-pair-002`, described in [docs/RESEARCH.md](docs/RESEARCH.md). It is a paired-answer experiment. Platt scaling failed the held-out ECE check, so the demo does not show a factual-risk percentage. `halueval-pair-001` is kept as `artifacts/probes/final-hidden-state.previous/`.
+`text-baselines`, `freeze-generation-split`, and `build-generation-dataset` do not load Qwen. The dataset command labels answers that were already generated. It does not train a probe and it does not write `artifacts/probes/final-hidden-state/`. Training is not part of routine tests. The live probe is `halueval-pair-002`, described in [docs/RESEARCH.md](docs/RESEARCH.md). It is a paired-answer experiment. Platt scaling failed the held-out ECE check, so the demo does not show a factual-risk percentage. `halueval-pair-001` is kept as `artifacts/probes/final-hidden-state.previous/`.
 
 A tiny checkpoint for a pipeline check, not a scientific run:
 

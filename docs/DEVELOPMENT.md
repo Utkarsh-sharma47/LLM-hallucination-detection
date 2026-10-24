@@ -40,7 +40,7 @@ The hook config is [`.pre-commit-config.yaml`](../.pre-commit-config.yaml): whit
 
 `.env.example` documents `HF_TOKEN` and `HF_HOME`. `glassbox.env.load_env_file` can load a file, and nothing in the CLI calls it today. The smoke test does not read `.env` and does not print variable values.
 
-Demo flags that change a run: `--offline`, `--model`, `--probe`, `--max-new-tokens`, `--distribution-export {topk,full}`, `--config`, `--references`. Training flags: `--max-questions` (default 240), `--seed` (default 0), `--download-data`, `--snapshot`, `--run-id`, `--output`.
+Demo flags that change a run: `--offline`, `--model`, `--probe`, `--max-new-tokens`, `--distribution-export {topk,full}`, `--config`, `--references`. Training flags: `--max-questions` (default 240), `--seed` (default 0), `--download-data`, `--snapshot`, `--run-id`, `--output`. `freeze-generation-split` and `build-generation-dataset` write an evaluation dataset from a frozen question list and supplied answers. They do not load Qwen and they refuse to write `artifacts/probes/final-hidden-state/`.
 
 The demo config pins dtype `bfloat16` so training and interactive inference use the same representation. `resolve_dtype("auto")` still picks float32 when the estimated weights plus 1 GiB headroom fit, otherwise bfloat16. A probe trained in one dtype is rejected for the other when the artifact stored a dtype.
 

@@ -38,6 +38,7 @@ glassbox smoke test: ok (version=0.1.0, phase=scaffold, model=Qwen/Qwen2.5-3B-In
 | `test_probe_training.py` | one-class training does not borrow test rows; separable features score on held-out ids |
 | `test_halueval_splits.py` | filters and disjoint question splits |
 | `test_truthfulqa_labels.py` | reference labels, paraphrase stays unvalidated, probe publish, lock message |
+| `test_generation_dataset.py` | frozen generation split, reference phrases, unvalidated and ambiguous rows kept out of both classes, pilot below the interval minimum, no pair-protocol metrics, refusal to write the saved probe directory. No Qwen load. |
 | `test_research_baselines.py` | shared scaler, text baseline, tiny-sample interval refusal, ambiguous label, saturated experimental score still says risk is not assessed. No Qwen load. The saved-probe metadata check skips when the gitignored artifact is absent. |
 
 `research_tests/` is the scaffold:
