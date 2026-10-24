@@ -222,14 +222,13 @@ def _md_cell(text: str) -> str:
 
 def format_verification_view(turn: TurnRecord) -> str:
     """Show the curated reference check on its own."""
-    if turn.reference.status == "not_configured":
-        status = "NO REFERENCE AVAILABLE"
-    else:
-        status = turn.reference.status
+    from glassbox.present import reference_label
+
+    status = reference_label(turn.reference.status)
     return (
         "Reference verification\n"
         "External curated check. This is not the probe and not a token probability.\n"
-        f"{status}\n{turn.reference.detail}\n"
+        f"Factuality: {status}\n{turn.reference.detail}\n"
     )
 
 

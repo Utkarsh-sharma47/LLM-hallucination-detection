@@ -32,7 +32,7 @@ def test_analyze_text_does_not_probe_hidden_states(monkeypatch, capsys):
     )
     assert code == 0
     output = capsys.readouterr().out
-    assert "CORRECT" in output
+    assert "FAITHFUL" in output
     assert "Hidden-state probing cannot be performed on this text alone." in output
     assert EXTERNAL_PROBE_NOTE.split(".")[0] in output
     assert "PROBE NOT TRAINED" in output
@@ -50,7 +50,7 @@ def test_misleading_sample_can_fail_the_reference_check(monkeypatch, capsys):
         ]
     )
     assert code == 0
-    assert "FALSE CLAIM ASSERTED" in capsys.readouterr().out
+    assert "HALLUCINATED" in capsys.readouterr().out
 
 
 def test_offline_config_refuses_a_download():

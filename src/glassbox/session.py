@@ -146,9 +146,11 @@ def _apply_probe(turn: TurnRecord, probe: LoadedProbe | None) -> None:
         turn.experimental_score = experimental_score(probe, generation.feature)
         _record_probe_decision(turn, probe)
     except ProbeCompatibilityError as exc:
-        turn.probe_status = PROBE_NOT_TRAINED
+        turn.probe_status = "PROBE INCOMPATIBLE"
         turn.score_note = f"Saved probe was not applied: {exc}"
         turn.experimental_score = None
+        turn.probe_prediction = None
+        turn.factual_risk_score = None
         return
     extra = probe.metadata.get("metrics_note")
     note = _SCORE_NOTE_EXPERIMENTAL
