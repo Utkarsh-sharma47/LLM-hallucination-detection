@@ -36,6 +36,7 @@ glassbox smoke test: ok (version=0.1.0, phase=scaffold, model=Qwen/Qwen2.5-3B-In
 | `test_distributions.py` | softmax over the full vocabulary |
 | `test_probe_status.py` | missing or uncalibrated probe labels |
 | `test_probe_training.py` | one-class training does not borrow test rows; separable features score on held-out ids |
+| `test_reproduction.py` | a dirty worktree is not a finished reproduction; ECE above 0.10 keeps calibration unvalidated. No Qwen load. |
 | `test_halueval_splits.py` | filters and disjoint question splits |
 | `test_truthfulqa_labels.py` | reference labels, paraphrase stays unvalidated, probe publish, lock message |
 | `test_generation_dataset.py` | frozen generation split, reference phrases, unvalidated and ambiguous rows kept out of both classes, pilot below the interval minimum, no pair-protocol metrics, refusal to write the saved probe directory. No Qwen load. |

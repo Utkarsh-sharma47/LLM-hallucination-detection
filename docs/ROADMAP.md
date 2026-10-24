@@ -6,7 +6,7 @@ Owners are unassigned unless noted. The GitHub repository owner is the default r
 
 ### 1. Make the saved HaluEval run reproducible
 
-- **Status:** partial. The live probe is `halueval-pair-002` in `artifacts/probes/final-hidden-state/`. dtype is `bfloat16`, revision is pinned, and calibration was rejected (test ECE 0.114). `halueval-pair-001` is kept in `final-hidden-state.previous/`. The record's git commit is `9b8bcc48019774510a7947730504fab29272e75b` and it notes a dirty worktree, so the artifact is not a clean-checkout reproduction. Do not lower the ECE limit.
+- **Status:** partial. The live probe is `halueval-pair-002` in `artifacts/probes/final-hidden-state/`. dtype is `bfloat16`, revision is pinned, and calibration was rejected (test ECE 0.114). `halueval-pair-001` is kept in `final-hidden-state.previous/`. The record's git commit is `9b8bcc48019774510a7947730504fab29272e75b` and it notes a dirty worktree, so the artifact is not a clean-checkout reproduction and was not rewritten. New records set `finished_reproduction` false when the worktree is dirty. The ECE limit remains 0.10. A clean rerun has not been executed.
 - **Depends on:** the pinned QA file and a machine that can load `Qwen/Qwen2.5-0.5B-Instruct`. Quit other Glass Box processes first. An earlier attempt the same day failed the RAM check.
 - **Acceptance:** a new run from a clean commit exits 0; metadata includes dtype; the demo process started after that run shows an experimental score and `RISK NOT ASSESSED`; the write-up keeps the lexical-overlap baseline next to the probe AUROC. Do not lower the ECE limit after seeing 0.104.
 - **Owner:** unassigned.
