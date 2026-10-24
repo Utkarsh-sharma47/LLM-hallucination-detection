@@ -155,6 +155,17 @@ def main(argv: list[str] | None = None) -> int:
     evaluation.add_argument("--payload", type=Path, required=True)
     evaluation.add_argument("--output", type=Path, required=True)
     evaluation.add_argument("--artifacts-root", type=Path, required=True)
+    transfer = commands.add_parser(
+        "eval-saved-probe",
+        help="Score cached Qwen generations with the saved HaluEval pair probe. Does not train.",
+    )
+    transfer.add_argument("--max-questions", type=int, default=None)
+    transfer.add_argument("--seed", type=int, default=0)
+    transfer.add_argument("--run-id", default=None)
+    transfer.add_argument("--snapshot", type=Path, default=None)
+    transfer.add_argument("--halueval", type=Path, default=None)
+    transfer.add_argument("--probe", type=Path, default=None)
+    transfer.add_argument("--artifacts-root", type=Path, default=None)
     args = parser.parse_args(argv)
     if args.command == "train-probe":
         from glassbox.probes.training import train_command
@@ -184,6 +195,10 @@ def main(argv: list[str] | None = None) -> int:
         from glassbox.evaluation.generation_record import write_command
 
         return write_command(args)
+    if args.command == "eval-saved-probe":
+        from glassbox.evaluation.probe_transfer import transfer_command
+
+        return transfer_command(args)
     console = make_console()
     if args.samples:
         render_samples(console)
