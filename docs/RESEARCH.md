@@ -94,7 +94,9 @@ This is the probe in `artifacts/probes/final-hidden-state/`. The earlier `haluev
 | Answer-length AUROC | 0.981 |
 | Lexical overlap with the gold answer | AUROC 1, F1 1 |
 
-Overlap can recover the label because the faithful text is the gold string. The probe's AUROC does not show that the hidden state is doing something the answer text does not already contain. The demo shows this score as `EXPERIMENTAL PROBE SCORE` and `RISK NOT ASSESSED`.
+Overlap can recover the label because the faithful text is the gold string. The probe AUROC of 0.996 sits next to that lexical-overlap AUROC of 1 and the answer-length AUROC of 0.981. The probe's AUROC does not show that the hidden state is doing something the answer text does not already contain. The demo shows this score as `EXPERIMENTAL PROBE SCORE` and `RISK NOT ASSESSED`.
+
+The saved record notes commit `9b8bcc48019774510a7947730504fab29272e75b` and a dirty worktree. That artifact was not rewritten. A later pair record sets `finished_reproduction` and `reproducible` to false when `git status --porcelain` is non-empty, so a dirty tree is not stored as a finished reproduction. Test ECE 0.114 remains above `CALIBRATION_ECE_LIMIT` 0.10, so `calibration_validated` stays false. The limit was not lowered.
 
 ## TruthfulQA generation check `truthfulqa-generation-001`
 

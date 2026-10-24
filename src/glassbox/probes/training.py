@@ -40,6 +40,7 @@ from glassbox.probes.scoring import (
     CALIBRATION_ECE_LIMIT,
     CALIBRATION_MIN_PER_CLASS,
     apply_platt,
+    calibration_is_validated,
     class_counts,
     confusion_counts,
     expected_calibration_error,
@@ -49,7 +50,7 @@ from glassbox.probes.scoring import (
     select_threshold,
 )
 from glassbox.probes.store import save_probe
-from glassbox.reproducibility import require_commit_hash
+from glassbox.reproducibility import mark_reproduction, pair_record_notes, require_commit_hash
 
 MIN_TRAIN_PER_CLASS = 20
 REGISTERED_POSITION = "last_generated_token"
@@ -197,9 +198,10 @@ def train_from_examples(
                 f"validation and test has at least {CALIBRATION_MIN_PER_CLASS} rows of each class "
                 f"and the test ECE is at most {CALIBRATION_ECE_LIMIT}."
             )
-            if test_ece <= CALIBRATION_ECE_LIMIT:
-                calibration_validated = True
-            else:
+            calibration_validated = calibration_is_validated(
+                test_ece, validation_ready=True, test_ready=True
+            )
+            if not calibration_validated:
                 report["calibration_rejected"] = (
                     f"Test ECE {test_ece:.3f} is above {CALIBRATION_ECE_LIMIT}. "
                     "The saved score stays the uncalibrated logistic output."
@@ -728,11 +730,11 @@ def _write_experiment(
         print("No test metrics, so no experiment record was written.")
         return
     commit, dirty = _git_state()
-    notes = (
-        "HaluEval pair protocol on Qwen2.5-0.5B-Instruct. "
-        f"Calibration validated={outcome.calibration_validated}. "
-        f"Worktree dirty={dirty}. Early detection and intervention were not run. "
-        f"Model requested: {model_name}."
+    claim = mark_reproduction(dirty=dirty, finished_reproduction=not dirty)
+    notes = pair_record_notes(
+        dirty=dirty,
+        calibration_validated=outcome.calibration_validated,
+        model_name=model_name,
     )
     record = build_run_record(
         run_id=run_id,
@@ -744,6 +746,9 @@ def _write_experiment(
             "dataset": dataset_record,
             "calibration_validated": outcome.calibration_validated,
             "threshold": outcome.threshold,
+            "reproducible": claim["reproducible"],
+            "finished_reproduction": claim["finished_reproduction"],
+            "worktree_dirty": claim["worktree_dirty"],
         },
         metrics={**metrics, "early_warning_lead": None},
         notes=notes,

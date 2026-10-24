@@ -67,6 +67,7 @@ A run that claims a measurement needs all of the following. Missing any one of t
 - `artifacts/experiments/<run_id>/record.json` from `build_run_record`
 - dtype, device, seed, and the threshold frozen on validation
 - `python --version` and `pip freeze` copied into the run directory by the operator
+- A clean worktree. A non-empty `git status --porcelain` sets `finished_reproduction` and `reproducible` to false. That record is not a finished reproduction. Do not lower `CALIBRATION_ECE_LIMIT` below 0.10 to accept a run.
 
 `write_json` only writes under the `artifacts/` root it is given. Git ignores everything there except `artifacts/.gitkeep`.
 

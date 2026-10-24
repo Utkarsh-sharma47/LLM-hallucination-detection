@@ -18,6 +18,21 @@ CALIBRATION_MIN_PER_CLASS = 15
 ECE_BINS = 10
 
 
+def calibration_is_validated(test_ece: float, *, validation_ready: bool, test_ready: bool) -> bool:
+    """Accept Platt scaling only when both splits are large enough and ECE is within the limit.
+
+    ``CALIBRATION_ECE_LIMIT`` stays 0.10. A test ECE of 0.114 does not validate calibration.
+    """
+    if not validation_ready or not test_ready:
+        return False
+    if isinstance(test_ece, bool) or not isinstance(test_ece, (int, float)):
+        raise ValueError("test_ece must be a number")
+    number = float(test_ece)
+    if not np.isfinite(number):
+        return False
+    return number <= CALIBRATION_ECE_LIMIT
+
+
 def select_threshold(labels: np.ndarray, scores: np.ndarray) -> float:
     """Pick the validation threshold with the highest F1, then the lower FPR."""
     best_threshold = 0.5
