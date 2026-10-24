@@ -70,13 +70,14 @@ def next_best(token: GeneratedToken):
 
 
 def reference_label(status: str) -> str:
+    """Show the evidence label. A missing reference stays unlabeled."""
     labels = {
-        "faithful": "CORRECT — curated demo fact",
-        "hallucinated": "FALSE CLAIM ASSERTED — curated demo fact",
-        "unvalidated": "INCONCLUSIVE — curated demo fact",
-        "ambiguous": "AMBIGUOUS — accepted alias and false claim",
+        "faithful": "FAITHFUL",
+        "hallucinated": "HALLUCINATED",
+        "unvalidated": "UNVALIDATED",
+        "ambiguous": "AMBIGUOUS",
         "not_configured": "NO REFERENCE AVAILABLE",
-        "configured": "CURATED ITEM AVAILABLE",
+        "configured": "NO ANSWER CHECKED",
     }
     return labels.get(status, status)
 
@@ -352,7 +353,7 @@ def _risk_panel(turn: TurnRecord) -> Panel:
         if turn.experimental_score is not None:
             body.append("EXPERIMENTAL PROBE SCORE\n", style="bold yellow")
             body.append(
-                f"Experimental probe score: {format_percent(turn.experimental_score)}. "
+                f"Raw score: {turn.experimental_score:.3f}. "
                 "This is not a calibrated factual-risk percentage.\n"
             )
             body.append("RISK NOT ASSESSED\n", style="bold yellow")
@@ -457,6 +458,7 @@ def _summary(turn: TurnRecord) -> Table:
     table.add_row("Device", f"{generation.device} · {generation.dtype}")
     prediction = turn.probe_prediction or turn.probe_status
     table.add_row("Probe class", prediction)
+    table.add_row("Prompt mode", generation.prompt_mode)
     table.add_row("Calibration", turn.calibration_status)
     table.add_row("Hidden states", hidden)
     table.add_row("Reference", reference_label(turn.reference.status))

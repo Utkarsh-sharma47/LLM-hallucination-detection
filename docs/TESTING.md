@@ -19,7 +19,7 @@ On 23 October 2026, `pytest tests research_tests` was run again after the text-b
 glassbox smoke test: ok (version=0.1.0, phase=scaffold, model=Qwen/Qwen2.5-3B-Instruct, downloads=disabled)
 ```
 
-`--samples` and `--analyze-text` were run again while writing this page. Both exited 0 and did not construct a model backend. `--samples` prints the three built-in questions. The Australia answer above prints `CORRECT` and the sentence that hidden-state probing cannot be performed on text alone.
+`--samples` and `--analyze-text` were run again while writing this page. Both exited 0 and did not construct a model backend. `--samples` prints the three built-in questions. The Australia answer above prints `FAITHFUL` and the sentence that hidden-state probing cannot be performed on text alone.
 
 `pytest` alone does not collect `research_tests/`. CI runs both trees.
 
@@ -33,6 +33,7 @@ glassbox smoke test: ok (version=0.1.0, phase=scaffold, model=Qwen/Qwen2.5-3B-In
 | `test_workflow.py` | arbitrary questions, model kept loaded, narrow report, export, command legend |
 | `test_decoding.py` | greedy and temperature probabilities, full-vocabulary export stays out of the terminal |
 | `test_present.py` | token probability is not shown as factual risk |
+| `test_ask_terminal.py` | last-answer hidden-state index, incompatible probe, missing reference, ambiguous evidence, incomplete probe directory. No Qwen load. |
 | `test_distributions.py` | softmax over the full vocabulary |
 | `test_probe_status.py` | missing or uncalibrated probe labels |
 | `test_probe_training.py` | one-class training does not borrow test rows; separable features score on held-out ids |

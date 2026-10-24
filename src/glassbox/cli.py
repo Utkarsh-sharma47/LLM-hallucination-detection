@@ -233,16 +233,22 @@ def main(argv: list[str] | None = None) -> int:
     session = DemoSession(backend=backend, settings=generation, facts=facts, probe=probe)
     if probe is None:
         detector = PROBE_NOT_TRAINED
+        detail = f"{config.selection_reason} No saved probe was loaded. No prediction was invented."
     elif probe.calibrated:
         detector = "calibrated probe loaded"
+        detail = config.selection_reason
     else:
         detector = "experimental probe loaded"
+        detail = (
+            f"{config.selection_reason} The loaded score is an experimental pair-task score. "
+            "RISK NOT ASSESSED."
+        )
     render_banner(
         console,
         model_name=config.spec.name,
         backend_label="Hugging Face causal LM",
         detector_status=detector,
-        detail=config.selection_reason,
+        detail=detail,
     )
     if args.once and not args.question and not args.demo:
         print("Pass --question with --once.", file=sys.stderr)
@@ -403,9 +409,20 @@ def _ensure_model(session: DemoSession, console: Console) -> None:
 
 
 def _load_optional_probe(path: Path | None):
-    folder = default_probe_dir() if path is None else path
+    """Load a saved probe, or return None when the default directory is absent.
+
+    An explicit path, or a default directory that exists but is incomplete,
+    fails before any score is invented.
+    """
+    explicit = path is not None
+    folder = default_probe_dir() if path is None else Path(path)
     if not folder.exists():
+        if explicit:
+            raise FileNotFoundError(f"Probe directory does not exist: {folder}")
         return None
-    if not (folder / "probe.joblib").is_file():
-        return None
+    complete = (folder / "probe.joblib").is_file() and (folder / "metadata.json").is_file()
+    if not complete:
+        raise FileNotFoundError(
+            f"Probe directory is incomplete: {folder}. No prediction was invented."
+        )
     return load_probe(folder)

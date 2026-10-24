@@ -66,7 +66,13 @@ python scripts/demo.py --samples
 
 `--offline` reads the Hugging Face cache and does not download weights. `--samples` and `--analyze-text` do not load a model. `--analyze-text` cannot see logits or hidden states.
 
-Without a calibrated probe the report says `PROBE NOT TRAINED` and `RISK NOT ASSESSED`. A question outside the curated file says `NO REFERENCE AVAILABLE`.
+```bash
+python -m glassbox --offline
+```
+
+That command loads cached `Qwen/Qwen2.5-0.5B-Instruct` once, then accepts questions until a blank line. Each turn shows the generated answer, the raw probe score and predicted class, the separate evidence label, the model revision, and the hidden-state position, layer, and width. Evidence labels are `FAITHFUL`, `HALLUCINATED`, `AMBIGUOUS`, or `UNVALIDATED` only when the curated check supports them. A question outside `configs/curated_facts.yaml` says `NO REFERENCE AVAILABLE`. A wording difference is not a hallucination. A missing or incompatible probe says so and does not invent a score.
+
+The saved probe discriminates supplied HaluEval answer pairs. On 25 labeled Qwen generations its AUROC was 0.438, below a chance ranking, and the smaller class had 9 rows, so no confidence interval was computed. The terminal keeps `EXPERIMENTAL PROBE SCORE` and `RISK NOT ASSESSED`. Calibration was not validated. The threshold stays 0.65.
 
 ## Demo model and probe command
 

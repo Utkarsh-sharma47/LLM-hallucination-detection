@@ -65,7 +65,7 @@ def test_token_probability_is_shown_and_is_not_the_risk_score():
     assert "PROBE NOT TRAINED" in text
     assert "unavailable" in risk
     assert "NOT ASSESSED" in text
-    assert "CORRECT" in text
+    assert "FAITHFUL" in text
     assert "can be correct" in text
     assert "can be false" in text
     for invented in ("82.4%", "11.2%", "96.1%", "98.0%"):
