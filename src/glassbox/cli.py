@@ -125,6 +125,29 @@ def main(argv: list[str] | None = None) -> int:
     audit.add_argument("--report", type=Path, default=None)
     audit.add_argument("--snapshot", type=Path, default=None)
     audit.add_argument("--run-id", default="truthfulqa-label-audit-001")
+    freeze = commands.add_parser(
+        "freeze-generation-split",
+        help="Write TruthfulQA question ids before generation. Does not load Qwen or train.",
+    )
+    freeze.add_argument("--max-questions", type=int, default=40)
+    freeze.add_argument("--seed", type=int, default=0)
+    freeze.add_argument("--snapshot", type=Path, default=None)
+    freeze.add_argument("--run-id", default="truthfulqa-generation-split")
+    freeze.add_argument("--output", type=Path, default=None)
+    freeze.add_argument("--artifacts-root", type=Path, default=None)
+    dataset = commands.add_parser(
+        "build-generation-dataset",
+        help="Label supplied TruthfulQA answers. Does not load Qwen or train a probe.",
+    )
+    dataset.add_argument("--split", type=Path, required=True)
+    dataset.add_argument("--answers", type=Path, required=True)
+    dataset.add_argument("--model-name", required=True)
+    dataset.add_argument("--model-revision", required=True)
+    dataset.add_argument("--dtype", required=True)
+    dataset.add_argument("--snapshot", type=Path, default=None)
+    dataset.add_argument("--run-id", default="truthfulqa-generation-dataset")
+    dataset.add_argument("--output", type=Path, default=None)
+    dataset.add_argument("--artifacts-root", type=Path, default=None)
     args = parser.parse_args(argv)
     if args.command == "train-probe":
         from glassbox.probes.training import train_command
@@ -142,6 +165,14 @@ def main(argv: list[str] | None = None) -> int:
         from glassbox.probes.generation_audit import audit_command
 
         return audit_command(args)
+    if args.command == "freeze-generation-split":
+        from glassbox.data.generation_dataset import freeze_command
+
+        return freeze_command(args)
+    if args.command == "build-generation-dataset":
+        from glassbox.data.generation_dataset import build_command
+
+        return build_command(args)
     console = make_console()
     if args.samples:
         render_samples(console)
