@@ -290,9 +290,11 @@ def build_transfer(
         answer = answers[item.question_id]
         label, detail, phrases = label_with_phrases(answer, item)
         score = probe_scores.get(item.question_id)
-        note = score_notes.get(item.question_id, "")
-        if score is None and not note.strip():
+        note = score_notes.get(item.question_id, "").strip()
+        if score is None and not note:
             raise ValueError(f"{item.question_id} is missing a probe score")
+        if score is not None and not note:
+            note = "experimental score from the saved HaluEval pair probe"
         if score is not None and (
             isinstance(score, bool)
             or not isinstance(score, (int, float))
@@ -324,7 +326,7 @@ def build_transfer(
                 "label": label.name,
                 "reference_phrases": list(phrases),
                 "probe_score": None if score is None else float(score),
-                "missing_score_reason": None if score is not None else note.strip(),
+                "missing_score_reason": None if score is not None else note,
             }
         )
         detail_rows.append(
@@ -336,6 +338,7 @@ def build_transfer(
                 "label_detail": detail,
                 "probe_score": None if score is None else float(score),
                 "probe_prediction": prediction,
+                "score_note": note,
                 "length_score": length_score(answer),
                 "reference_overlap_score": reference_overlap_score(
                     answer, item.correct, item.incorrect

@@ -133,6 +133,8 @@ def test_publish_keeps_every_label_and_drops_ineligible_rows_from_binary_metrics
     assert by_id["missing"]["in_binary_evaluation"] is False
     assert by_id["paraphrase"]["label"] == Label.UNVALIDATED.name
     assert by_id["paraphrase"]["probe_prediction"] == Label.HALLUCINATED.name
+    assert all(row["score_note"] for row in metrics["rows"])
+    assert by_id["missing"]["score_note"] == "hidden state unavailable"
     assert {row["question_id"] for row in metrics["false_positives"]} == {"faithful-high"}
     assert {row["question_id"] for row in metrics["false_negatives"]} == {"hallucinated-low"}
     assert metrics["calibration_validated"] is False
