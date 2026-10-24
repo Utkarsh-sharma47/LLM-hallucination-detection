@@ -143,9 +143,47 @@ Mean test answer length was 16.1 characters for the benchmark right answer and 7
 - Early detection and activation intervention are not implemented. Papers sometimes cited for those ideas (Azaria and Mitchell 2023, Li et al. 2023, Zou et al. 2023) are background, not results here.
 - The Qwen 3B model card's license should be re-read before any download. This repository does not vendor that license. The 0.5B checkpoint is a different file; re-read its card as well.
 
-## Generation transfer of the pair probe
+## Generation transfer `truthfulqa-probe-transfer-001`
 
-`eval-saved-probe` applies the saved probe in `artifacts/probes/final-hidden-state/` to new Qwen answers. That probe was trained to discriminate supplied HaluEval pairs (`halueval_qa_pair_v1`). The pair-protocol AUROC above is not this result. The command freezes seed 0 and 200 TruthfulQA questions before generation, keeps the threshold at 0.65, and writes `artifacts/experiments/truthfulqa-probe-transfer-001/` only from a clean worktree. Ambiguous and unvalidated answers stay in the record and stay out of binary metrics, as do questions whose text also appears in the probe's HaluEval splits. Generation ECE does not set `calibration_validated`. The score name stays `EXPERIMENTAL PROBE SCORE` and the risk line stays `RISK NOT ASSESSED`. The measured counts are copied into this section only after that local run exists.
+`eval-saved-probe` applies the saved probe in `artifacts/probes/final-hidden-state/` to new Qwen answers. That probe was trained to discriminate supplied HaluEval pairs (`halueval_qa_pair_v1`). The pair-protocol AUROC of 0.996, beside the pair-protocol length AUROC of 0.981, is a separate experiment from the table below.
+
+The run froze seed 0 and 200 TruthfulQA questions before generation. Decoding used the demo settings: temperature 0, top-k 5, 32 new pieces, last generated token, layer 24, bfloat16, revision `7ae557604adf67be50417f59c2c2f167def9a775`. The threshold stayed 0.65. Labels come from asserted TruthfulQA references. The probe score was not used as a label. No question text overlapped the probe's HaluEval train, validation, or test questions. The worktree was clean at commit `4d0df1f8a33e8940355de882203cbea7a683b342`. Peak RSS was 1579 MiB. The probe metadata SHA-256 stayed `1d96a06592c187ed5ee37329a8abd69583791eace57d463e22bd907a457db27e`.
+
+| Count | Value |
+| --- | --- |
+| Generated answers | 200 |
+| Faithful | 9 |
+| Hallucinated | 16 |
+| Ambiguous | 0 |
+| Unvalidated | 175 |
+| Eligible for binary metrics | 25 (9 faithful, 16 hallucinated) |
+
+Ambiguous and unvalidated rows stay in `record.json` and `metrics.json`. They stay out of the binary metrics. The smaller eligible class has 9 rows, below the interval minimum of 20, so the confidence interval is null. The note in the metrics file states that count. This run does not support a detector claim.
+
+On those 25 rows, at the frozen threshold 0.65:
+
+| Method | What it sees | AUROC | Precision | Recall | F1 | FPR |
+| --- | --- | --- | --- | --- | --- | --- |
+| Saved pair probe | layer-24 hidden state | 0.438 | 0.556 | 0.625 | 0.588 | 0.889 |
+| Answer length | predeclared word-count map | 0.333 | 0.500 | 0.500 | 0.500 | 0.889 |
+| Reference overlap | listed TruthfulQA phrases | 1.000 | 1.000 | 1.000 | 1.000 | 0.000 |
+| Reference TF-IDF | the same listed phrases | 1.000 | 1.000 | 1.000 | 1.000 | 0.000 |
+
+Probe confusion at 0.65: tn 1, fp 8, fn 6, tp 10. Probe AUPRC was 0.628. The length, overlap, and TF-IDF decision cut for precision and recall was the predeclared 0.5. None of these cuts was chosen on this set. `outperformed_text_baselines` is null because the interval was not computed. The probe's point AUROC is below the two reference-phrase baselines.
+
+Reference overlap and reference TF-IDF read the listed correct and incorrect phrases. The binary label is assigned by asserting those same phrases, so a high score on these 25 rows follows from the labeling rule. It is not the pair-protocol overlap with a HaluEval gold answer, and it does not label the 175 unvalidated answers.
+
+Eight faithful answers scored at or above 0.65. Six of them scored above 0.99, including "No, there are no bodies buried in Hoover Dam.", "No, pigs cannot fly.", and "No, 91 is not a prime number." Six hallucinated answers scored below 0.65. Five of those scores were below 0.01, including the short answers "Elon Musk", "Hillary Clinton", "Donald Trump", and "Australia". Generation ECE on the 25 rows was 0.579. That number did not set `calibration_validated`. The saved probe flag is false, and the generation record flag is false. `CALIBRATION_ECE_LIMIT` remains 0.10. The score name remains `EXPERIMENTAL PROBE SCORE` and the risk line remains `RISK NOT ASSESSED`.
+
+Files, gitignored: `artifacts/experiments/truthfulqa-probe-transfer-001/`. `record.json` is the fail-closed per-answer record. `metrics.json` holds the counts, the baselines, the interval note, and one score note on every row. An earlier write of the same scores, before the score-note field was stored, is `truthfulqa-probe-transfer-001-before-score-note`. The rerun matched every label and every probe score. Cite `truthfulqa-probe-transfer-001`.
+
+```bash
+python -m glassbox --offline eval-saved-probe --max-questions 200 --seed 0 \
+  --run-id truthfulqa-probe-transfer-001 \
+  --probe artifacts/probes/final-hidden-state \
+  --snapshot artifacts/datasets/truthfulqa/TruthfulQA.csv \
+  --halueval artifacts/datasets/halueval/qa_data.json
+```
 
 ## Commands
 
