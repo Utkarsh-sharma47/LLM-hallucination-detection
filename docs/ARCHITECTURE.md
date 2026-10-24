@@ -70,6 +70,8 @@ The positive class is the HaluEval `hallucinated_answer` string. It is not a new
 
 `python -m glassbox freeze-generation-split` reads the pinned TruthfulQA CSV and writes question ids before any answer is labeled. `python -m glassbox build-generation-dataset` then labels supplied answer text with `label_generated_answer`. Neither command loads Qwen or calls `publish_probe`. The output is `artifacts/experiments/<run-id>/dataset.json` unless `--output` is set. A path under `artifacts/probes/final-hidden-state/`, including the `.previous`, `.staging`, and `.incoming` directories, is refused. Ambiguous and unvalidated rows stay in the file. The record states whether each binary class meets the interval minimum of 20 and records the 5-of-40 pilot as below that minimum. It does not store pair-protocol metrics.
 
+`python -m glassbox --offline eval-saved-probe` is the later transfer check. It generates with the cached demo model, scores the saved pair probe, and writes `record.json` through that fail-closed writer. Metrics stay in a sibling `metrics.json`. The command does not retrain the probe and does not download weights.
+
 ## Shared behavior, and where it is duplicated
 
 Use these modules instead of copying the rule:

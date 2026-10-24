@@ -143,11 +143,16 @@ Mean test answer length was 16.1 characters for the benchmark right answer and 7
 - Early detection and activation intervention are not implemented. Papers sometimes cited for those ideas (Azaria and Mitchell 2023, Li et al. 2023, Zou et al. 2023) are background, not results here.
 - The Qwen 3B model card's license should be re-read before any download. This repository does not vendor that license. The 0.5B checkpoint is a different file; re-read its card as well.
 
+## Generation transfer of the pair probe
+
+`eval-saved-probe` applies the saved probe in `artifacts/probes/final-hidden-state/` to new Qwen answers. That probe was trained to discriminate supplied HaluEval pairs (`halueval_qa_pair_v1`). The pair-protocol AUROC above is not this result. The command freezes seed 0 and 200 TruthfulQA questions before generation, keeps the threshold at 0.65, and writes `artifacts/experiments/truthfulqa-probe-transfer-001/` only from a clean worktree. Ambiguous and unvalidated answers stay in the record and stay out of binary metrics, as do questions whose text also appears in the probe's HaluEval splits. Generation ECE does not set `calibration_validated`. The score name stays `EXPERIMENTAL PROBE SCORE` and the risk line stays `RISK NOT ASSESSED`. The measured counts are copied into this section only after that local run exists.
+
 ## Commands
 
 ```bash
 python -m glassbox --offline train-probe --max-questions 200 --run-id halueval-pair-002
 python -m glassbox --offline eval-truthfulqa --max-questions 40 --run-id truthfulqa-generation-001
+python -m glassbox --offline eval-saved-probe
 python -m glassbox freeze-generation-split --max-questions 40 --seed 0
 python -m glassbox build-generation-dataset --split path/to/split.json --answers path/to/answers.json \
   --model-name Qwen/Qwen2.5-0.5B-Instruct \
