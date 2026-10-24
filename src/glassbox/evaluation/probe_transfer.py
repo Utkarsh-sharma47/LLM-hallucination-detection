@@ -573,7 +573,7 @@ def _transfer_command(args: argparse.Namespace) -> int:
         "worktree_clean": True,
     }
     settings = {
-        "max_new_tokens": config.generation.max_new_tokens,
+        "answer_piece_limit": config.generation.max_new_tokens,
         "temperature": config.generation.temperature,
         "top_k": config.generation.top_k,
         "layer_index": config.generation.layer_index,

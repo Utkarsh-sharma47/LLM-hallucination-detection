@@ -146,6 +146,9 @@ def test_publish_keeps_every_label_and_drops_ineligible_rows_from_binary_metrics
     assert metrics["probe"]["threshold"] == 0.65
     assert metrics["length_baseline"]["threshold"] == 0.5
     assert metrics["outperformed_text_baselines"] is None
+    assert metrics["generation_settings"]["answer_piece_limit"] == 32
+    markers = ("secret", "password", "token", "credential", "api_key", "private_key")
+    assert all(all(marker not in key for marker in markers) for key in _keys(metrics))
 
 
 def test_interval_is_computed_only_at_the_predeclared_minimum_and_ece_does_not_validate(
@@ -359,7 +362,18 @@ def _publish_kwargs(destination: Path, root: Path) -> dict[str, object]:
         "destination": destination,
         "artifacts_root": root,
         "probe_metadata_calibration_validated": False,
-        "generation_settings": {"temperature": 0.0, "threshold": SAVED_PAIR_THRESHOLD},
+        "generation_settings": {
+            "answer_piece_limit": 32,
+            "temperature": 0.0,
+            "top_k": 5,
+            "layer_index": -1,
+            "position": "last_generated_token",
+            "seed": 0,
+            "max_questions": 8,
+            "threshold": SAVED_PAIR_THRESHOLD,
+            "baseline_threshold": BASELINE_THRESHOLD,
+            "length_smoothing": 8,
+        },
         "probe_metadata_sha256": "d" * 64,
     }
 
