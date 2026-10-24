@@ -148,6 +148,13 @@ def main(argv: list[str] | None = None) -> int:
     dataset.add_argument("--run-id", default="truthfulqa-generation-dataset")
     dataset.add_argument("--output", type=Path, default=None)
     dataset.add_argument("--artifacts-root", type=Path, default=None)
+    evaluation = commands.add_parser(
+        "write-generation-evaluation",
+        help="Write a generation-evaluation record. Does not load Qwen or train a probe.",
+    )
+    evaluation.add_argument("--payload", type=Path, required=True)
+    evaluation.add_argument("--output", type=Path, required=True)
+    evaluation.add_argument("--artifacts-root", type=Path, required=True)
     args = parser.parse_args(argv)
     if args.command == "train-probe":
         from glassbox.probes.training import train_command
@@ -173,6 +180,10 @@ def main(argv: list[str] | None = None) -> int:
         from glassbox.data.generation_dataset import build_command
 
         return build_command(args)
+    if args.command == "write-generation-evaluation":
+        from glassbox.evaluation.generation_record import write_command
+
+        return write_command(args)
     console = make_console()
     if args.samples:
         render_samples(console)
