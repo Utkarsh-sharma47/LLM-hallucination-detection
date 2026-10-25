@@ -60,11 +60,21 @@ def test_missing_reference_is_not_a_hallucination() -> None:
         detail="NO REFERENCE AVAILABLE. This question is outside the curated list.",
         label=None,
     )
-    turn = _turn(feature=None, feature_dim_layer=None, reference=reference)
+    turn = _turn(
+        feature=None,
+        feature_dim_layer=None,
+        reference=reference,
+        experimental_score=0.9,
+        probe_prediction="hallucinated",
+        probe_threshold=0.65,
+        calibration_status="not validated",
+    )
     text = render_turn_text(turn)
     assert reference_label("not_configured") == "NO REFERENCE AVAILABLE"
     assert "NO REFERENCE AVAILABLE" in text
     assert "HALLUCINATED" not in text
+    assert "RISK NOT ASSESSED" in text
+    assert "Raw score: 0.900" in text
 
 
 def test_ambiguous_answer_stays_ambiguous() -> None:
@@ -82,11 +92,17 @@ def test_ambiguous_answer_stays_ambiguous() -> None:
         feature=None,
         feature_dim_layer=None,
         reference=result,
+        experimental_score=1.0,
+        probe_prediction="hallucinated",
+        probe_threshold=0.65,
+        calibration_status="not validated",
     )
     text = render_turn_text(turn)
     assert "AMBIGUOUS" in text
     assert "FAITHFUL" not in text
     assert "HALLUCINATED" not in text
+    assert "RISK NOT ASSESSED" in text
+    assert "Raw score: 1.000" in text
 
 
 def test_incomplete_probe_directory_fails_before_a_model(
@@ -139,6 +155,10 @@ def _turn(
     feature: np.ndarray | None,
     feature_dim_layer: int | None,
     reference: ReferenceResult | None = None,
+    experimental_score: float | None = None,
+    probe_prediction: str | None = None,
+    probe_threshold: float | None = None,
+    calibration_status: str = "",
 ) -> TurnRecord:
     if reference is None:
         reference = ReferenceResult(
@@ -171,8 +191,11 @@ def _turn(
             load_count=1,
         ),
         probe_status="experimental probe loaded",
-        experimental_score=None,
-        score_note="",
+        experimental_score=experimental_score,
+        score_note="not a calibrated hallucination probability",
         factual_risk_score=None,
         reference=reference,
+        probe_prediction=probe_prediction,
+        probe_threshold=probe_threshold,
+        calibration_status=calibration_status,
     )

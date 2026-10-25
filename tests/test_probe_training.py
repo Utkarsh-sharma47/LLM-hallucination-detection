@@ -78,6 +78,22 @@ def test_separable_features_are_scored_on_held_out_ids(tmp_path: Path):
         assert loaded.metadata["calibration_validated"] is False
 
 
+def test_scaler_is_fit_on_training_rows_only(tmp_path: Path):
+    examples: list[FeatureExample] = []
+    examples.extend(_rows("train", 0, 20, Label.FAITHFUL, 0.0))
+    examples.extend(_rows("train", 20, 20, Label.HALLUCINATED, 1.0))
+    examples.extend(_rows("validation", 100, 15, Label.FAITHFUL, 0.0))
+    examples.extend(_rows("validation", 115, 15, Label.HALLUCINATED, 1.0))
+    examples.extend(_rows("test", 200, 15, Label.FAITHFUL, 5.0))
+    examples.extend(_rows("test", 215, 15, Label.HALLUCINATED, 5.0))
+    outcome = train_from_examples(examples, layer_index=-1, output_dir=tmp_path)
+    assert outcome.saved is True
+    loaded = load_probe(tmp_path)
+    mean = np.asarray(loaded.metadata["preprocessing"]["mean"], dtype=np.float64)
+    assert mean.shape == (4,)
+    assert np.allclose(mean, 0.5)
+
+
 def test_method_name_without_the_validated_flag_is_not_calibrated(tmp_path: Path):
     examples = []
     examples.extend(_rows("train", 0, 20, Label.FAITHFUL, 0.0))
