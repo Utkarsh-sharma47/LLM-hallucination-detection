@@ -39,7 +39,7 @@ Versions verified in this environment are listed in [docs/DEVELOPMENT.md](docs/D
 
 ## Usage
 
-`python -m glassbox` asks questions until you quit. The model loads on the first question and stays loaded. A question does not have to be in the curated list.
+`python -m glassbox` asks questions until you quit. The model loads on the first question and stays loaded. A question does not have to be in the curated list. A blank line quits at the question prompt and at the inspection menu.
 
 After an answer:
 
@@ -51,6 +51,7 @@ v = reference verification
 d = diagnostics
 e = export report
 q = quit
+A blank line quits.
 ```
 
 `e` writes `artifacts/sessions/session-N/session.json`, `session.md`, and `distributions-topk.csv` / `.jsonl`. Open the Markdown report with `less`. `piece_id` in the distribution files is the vocabulary id. The terminal does not print the full vocabulary. `--distribution-export full` also writes the full-vocabulary CSV and JSONL for that session.
@@ -72,7 +73,7 @@ python -m glassbox --offline
 
 That command loads cached `Qwen/Qwen2.5-0.5B-Instruct` once, then accepts questions until a blank line. Each turn shows the generated answer, the raw probe score and predicted class, the separate evidence label, the model revision, and the hidden-state position, layer, and width. Evidence labels are `FAITHFUL`, `HALLUCINATED`, `AMBIGUOUS`, or `UNVALIDATED` only when the curated check supports them. A question outside `configs/curated_facts.yaml` says `NO REFERENCE AVAILABLE`. A wording difference is not a hallucination. A missing or incompatible probe says so and does not invent a score.
 
-The saved probe discriminates supplied HaluEval answer pairs. On 25 labeled Qwen generations its AUROC was 0.438, below a chance ranking, and the smaller class had 9 rows, so no confidence interval was computed. The terminal keeps `EXPERIMENTAL PROBE SCORE` and `RISK NOT ASSESSED`. Calibration was not validated. The threshold stays 0.65.
+The saved probe discriminates supplied HaluEval answer pairs. On 25 labeled Qwen generations its AUROC was 0.438, below a chance ranking, and the smaller class had 9 rows, so no confidence interval was computed. A seven-question terminal spot check on 26 October 2026 scored every answer at 1.000. Five of those answers had a binary evidence label, the smaller class had 1 row, and that spot check is not a detector result. Details are in [docs/RESEARCH.md](docs/RESEARCH.md). The terminal keeps `EXPERIMENTAL PROBE SCORE` and `RISK NOT ASSESSED`. Calibration was not validated. The threshold stays 0.65.
 
 ## Demo model and probe command
 

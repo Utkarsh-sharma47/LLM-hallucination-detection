@@ -30,13 +30,15 @@ glassbox smoke test: ok (version=0.1.0, phase=scaffold, model=Qwen/Qwen2.5-3B-In
 | File | Covers |
 | --- | --- |
 | `test_cli_modes.py` | `--samples` and `--analyze-text` do not construct a backend; Sydney false claim; offline config |
-| `test_workflow.py` | arbitrary questions, model kept loaded, narrow report, export, command legend |
+| `test_workflow.py` | arbitrary questions, model kept loaded, blank-line exit, narrow report, export, command legend |
+| `test_probe_training.py` | one-class training does not borrow test rows; separable features score on held-out ids; the scaler is fit on training rows only |
 | `test_decoding.py` | greedy and temperature probabilities, full-vocabulary export stays out of the terminal |
 | `test_present.py` | token probability is not shown as factual risk |
-| `test_ask_terminal.py` | last-answer hidden-state index, incompatible probe, missing reference, ambiguous evidence, incomplete probe directory. No Qwen load. |
+| `test_ask_terminal.py` | last-answer hidden-state index, incompatible probe, missing reference, ambiguous evidence, incomplete probe directory. A probe score on those rows stays `RISK NOT ASSESSED`. No Qwen load. |
+| `test_claim_catalog.py` | checked-in claim types: faithful, hallucinated, ambiguous, unvalidated, and a question with no reference. Ambiguous and unvalidated rows stay out of both binary classes. No probe score and no Qwen load. |
+| `test_artifact_compatibility.py` | seeded in-memory split, metadata mismatches, missing or corrupted artifacts, and a fresh-process reload of a tiny saved probe. No Qwen load. |
 | `test_distributions.py` | softmax over the full vocabulary |
 | `test_probe_status.py` | missing or uncalibrated probe labels |
-| `test_probe_training.py` | one-class training does not borrow test rows; separable features score on held-out ids |
 | `test_reproduction.py` | a dirty worktree is not a finished reproduction; ECE above 0.10 keeps calibration unvalidated. No Qwen load. |
 | `test_halueval_splits.py` | filters and disjoint question splits |
 | `test_truthfulqa_labels.py` | reference labels, paraphrase stays unvalidated, probe publish, lock message |
@@ -89,6 +91,6 @@ On 23 October 2026 the local machine also ran:
 - `python -m glassbox audit-generations --run-id truthfulqa-label-audit-001` (no model load)
 - a scripted `python -m glassbox --offline` session, recorded under `artifacts/experiments/interactive-spotcheck.log` when that log exists
 
-`train-probe` was not repeated in this pass. The live probe remains `halueval-pair-002`.
+`train-probe` was not repeated. It would replace `artifacts/probes/final-hidden-state/`. The live probe remains `halueval-pair-002`, threshold 0.65, `calibration_validated` false. On 26 October 2026 a second process reloaded that directory and reproduced one score, and `python -m glassbox --offline` answered seven questions in one session. The answers and the reason that session is not a detector result are in [RESEARCH.md](RESEARCH.md). Two earlier load attempts the same day were refused by the RAM check and did not invent a score.
 
 A future probe run is accepted only when the saved directory loads in a new `python -m glassbox --offline` process and the report distinguishes an experimental score from `RISK NOT ASSESSED`.

@@ -333,6 +333,7 @@ COMMAND_LEGEND = (
     "d = diagnostics — model, prompt length, latency, and hidden-state shape\n"
     "e = export report — write JSON, Markdown, and the distribution table\n"
     "q = quit\n"
+    "A blank line quits.\n"
 )
 
 
@@ -367,7 +368,7 @@ def _menu(session: DemoSession) -> bool:
             return False
         if command in {"n", "next"}:
             return True
-        if command in {"q", "quit"}:
+        if command in {"", "q", "quit"}:
             return False
         rendered = render_command(session, command, root=repo_root() / "artifacts")
         if rendered is None:

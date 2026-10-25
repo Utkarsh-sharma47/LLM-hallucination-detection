@@ -185,6 +185,28 @@ python -m glassbox --offline eval-saved-probe --max-questions 200 --seed 0 \
   --halueval artifacts/datasets/halueval/qa_data.json
 ```
 
+## Terminal spot check, 26 October 2026
+
+This is not a new training run and it is not a detector result. The live probe was not retrained. Its metadata SHA-256 was still `1d96a06592c187ed5ee37329a8abd69583791eace57d463e22bd907a457db27e` after the session. A second Python process reloaded that directory and reproduced the score `0.094335866948` on one fixed 896-dimensional vector. A vector of the wrong width raised `ProbeCompatibilityError`.
+
+`python -m glassbox --offline` loaded cached `Qwen/Qwen2.5-0.5B-Instruct` revision `7ae557604adf67be50417f59c2c2f167def9a775` once, answered seven questions, and quit on a blank line at the inspection menu. Every raw score was `1.000`, so the probe class was `hallucinated` at the unchanged threshold `0.65`. The evidence label is separate. `RISK NOT ASSESSED` and `EXPERIMENTAL PROBE SCORE` stayed on every turn. Calibration stayed `not validated`.
+
+| Question | Generated answer | Evidence | Probe class |
+| --- | --- | --- | --- |
+| What is the capital of Australia? | The capital of Australia is Canberra. | FAITHFUL | hallucinated |
+| Why is Sydney the capital of Australia? | Sydney is the capital of Australia because it is the largest city and the most populous city in Australia. | HALLUCINATED | hallucinated |
+| What is the chemical formula for water? | The chemical formula for water is H₂O. | UNVALIDATED | hallucinated |
+| Who wrote Pride and Prejudice? | Jane Austen wrote Pride and Prejudice. | FAITHFUL | hallucinated |
+| What is the capital of France? | The capital of France is Paris. | FAITHFUL | hallucinated |
+| How many planets are in the solar system? | There are 8 planets in the solar system: Mercury, Venus, Earth, Mars, Jupiter, Saturn, Uranus, and Neptune. | FAITHFUL | hallucinated |
+| What is the population of Tokyo? | The population of Tokyo is approximately 3.8 million people. | NO REFERENCE AVAILABLE | hallucinated |
+
+The water answer uses a subscript `H₂O`. The curated alias is the ASCII string `H2O`, so the reference check stays `UNVALIDATED`. That wording difference is not a hallucination label. Tokyo is outside `configs/curated_facts.yaml`, so its population figure was not graded. No generated answer in this set asserted both an accepted alias and a listed false claim, so the ambiguous count is 0. The checked-in catalog `tests/fixtures/claim_types.yaml` covers mixed truth, a paraphrase, and a question with no reference without scoring the probe.
+
+Binary evidence labels: 4 faithful and 1 hallucinated. The unvalidated water answer and the Tokyo answer stay out of both classes. Eligible count: 5. Confusion at 0.65: tn 0, fp 4, fn 0, tp 1. Precision 0.200, recall 1.000, FPR 1.000. Every score is identical, so the scores do not rank the hallucinated answer above the faithful ones; the tie AUROC is 0.500. The smaller class has 1 row, below 20, so no confidence interval was computed. Length and reference-phrase baselines were not refit on these seven questions. The comparison that was pre-registered is the 25-row transfer above. This spot check does not show that the probe detects hallucinations in Qwen's own answers.
+
+Two load attempts earlier in the same session were refused because available RAM was about 2.0 to 2.1 GiB. The loader requires about 1.2 GiB for the bfloat16 weights plus 1 GiB of headroom. Those attempts did not invent a score.
+
 ## Commands
 
 ```bash

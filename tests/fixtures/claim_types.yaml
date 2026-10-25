@@ -1,0 +1,27 @@
+# Checked-in claim catalog. Expected labels come from listed phrases in
+# configs/curated_facts.yaml. They do not come from wording distance, lexical
+# overlap, or a probe score. Pair-task AUROC is not a result of this file.
+# The Paris sentence is the recorded correct answer. Issue #14 locks the
+# saturated experimental-score display for that sentence. This file does not
+# score it.
+items:
+  - id: correct-alias
+    question: "What is the capital of France?"
+    answer: "The capital of France is Paris."
+    expected: faithful
+  - id: false-claim
+    question: "What is the capital of France?"
+    answer: "The capital of France is Lyon."
+    expected: hallucinated
+  - id: mixed-truth
+    question: "What is the capital of France?"
+    answer: "Paris is the capital, but Lyon is the capital too."
+    expected: ambiguous
+  - id: paraphrase
+    question: "What is the capital of France?"
+    answer: "It is the well-known city where the national government sits."
+    expected: unvalidated
+  - id: no-reference
+    question: "What is the population of Tokyo?"
+    answer: "About 14 million people live there."
+    expected: not_configured

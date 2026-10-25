@@ -119,6 +119,26 @@ def test_menu_legend_matches_the_command_handlers(monkeypatch, capsys):
     assert "not the hidden-state probe" in output
 
 
+def test_blank_line_at_the_menu_quits(monkeypatch, capsys):
+    backend = _install_backend(monkeypatch)
+    answers = iter(["Who wrote The Odyssey?", ""])
+    monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
+    assert main([]) == 0
+    assert backend.questions == ["Who wrote The Odyssey?"]
+    assert backend.load_count == 1
+    assert "A blank line quits." in capsys.readouterr().out
+
+
+def test_blank_line_at_the_question_prompt_quits(monkeypatch, capsys):
+    backend = _install_backend(monkeypatch)
+    answers = iter([""])
+    monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
+    assert main([]) == 0
+    assert backend.questions == []
+    assert backend.load_count == 0
+    capsys.readouterr()
+
+
 def test_once_answers_one_question_without_a_menu(monkeypatch, capsys):
     backend = _install_backend(monkeypatch)
 
