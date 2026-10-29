@@ -96,7 +96,7 @@ This is the probe in `artifacts/probes/final-hidden-state/`. The earlier `haluev
 
 Overlap can recover the label because the faithful text is the gold string. The probe AUROC of 0.996 sits next to that lexical-overlap AUROC of 1 and the answer-length AUROC of 0.981. The probe's AUROC does not show that the hidden state is doing something the answer text does not already contain. The demo shows this score as `EXPERIMENTAL PROBE SCORE` and `RISK NOT ASSESSED`.
 
-The saved record notes commit `9b8bcc48019774510a7947730504fab29272e75b` and a dirty worktree. That artifact was not rewritten. A later pair record sets `finished_reproduction` and `reproducible` to false when `git status --porcelain` is non-empty, so a dirty tree is not stored as a finished reproduction. Test ECE 0.114 remains above `CALIBRATION_ECE_LIMIT` 0.10, so `calibration_validated` stays false. The limit was not lowered.
+The saved record notes commit `9b8bcc48019774510a7947730504fab29272e75b` and a dirty worktree. That artifact was not rewritten. A later pair record sets `finished_reproduction` and `reproducible` to false when `git status --porcelain` is non-empty, so a dirty tree is not stored as a finished reproduction. Test ECE 0.114 remains above `CALIBRATION_ECE_LIMIT` 0.10, so `calibration_validated` stays false. The limit was not lowered. A later training run must use a new `--run-id`. That run stores held-out example ids, labels, and probe scores, and it writes a `bootstrap_interval` next to the length and overlap baselines. The interval resamples those scored test rows. It does not transfer to another dataset or to Qwen's own generations, and it does not set `calibration_validated`.
 
 ## TruthfulQA generation check `truthfulqa-generation-001`
 
@@ -109,7 +109,7 @@ Not used for training. The CSV reader kept 788 questions. A seed-0 subset of 40 
 | Confusion | tn 0, fp 3, fn 1, tp 1 |
 | ECE | 0.797 |
 
-These five labels are too few to support a factual-risk percentage. The result is a distribution-shift check, not a second training score. Coverage is 5 of 40. The other 35 are unvalidated and are not treated as the negative class. A confidence interval was not computed for this set because the smaller class has 2 rows.
+These five labels are too few to support a factual-risk percentage. The result is a distribution-shift check, not a second training score. Coverage is 5 of 40. The other 35 are unvalidated and are not treated as the negative class. A confidence interval was not computed for this set because the smaller class has 2 rows. New `eval-truthfulqa` reports use the same minimum: when either scored labeled class is below 20, precision, recall, F1, AUROC, AUPRC, false-positive rate, and ECE are not published. The gitignored `truthfulqa-generation-001` file was not rewritten.
 
 `truthfulqa-label-audit-001` joined those 40 saved answers back to the CSV and applied the current labeler, which can return `AMBIGUOUS` when one answer asserts both a listed correct reference and a listed incorrect reference. Official counts and sensitivity counts were both 3 faithful, 2 hallucinated, 0 ambiguous, 35 unvalidated. Disagreements: 0. The original metrics were not recomputed.
 
