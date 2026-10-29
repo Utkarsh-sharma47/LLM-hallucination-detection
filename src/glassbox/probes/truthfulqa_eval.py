@@ -24,7 +24,7 @@ from glassbox.data.truthfulqa import (
     select_items,
 )
 from glassbox.demo_config import default_probe_dir, load_demo_config
-from glassbox.evaluation.metrics import compute_binary_metrics
+from glassbox.evaluation.metrics import BOOTSTRAP_MIN_PER_CLASS, compute_binary_metrics
 from glassbox.evaluation.records import write_json
 from glassbox.models.backend import HuggingFaceBackend
 from glassbox.probes.logistic import PROBE_NOT_TRAINED
@@ -158,10 +158,21 @@ def _report(rows: list[dict[str, object]], metadata: dict, loaded) -> dict[str, 
         "TruthfulQA is not the HaluEval pair task. Labels come only from asserted reference answers. "
         "Unvalidated generations are excluded from the metrics. The threshold was frozen on HaluEval validation."
     )
-    if len(labeled) >= 2 and {row["label"] for row in labeled} == {
+    labeled_faithful = sum(row["label"] == Label.FAITHFUL.name for row in labeled)
+    labeled_hallucinated = sum(row["label"] == Label.HALLUCINATED.name for row in labeled)
+    both_classes = {row["label"] for row in labeled} == {
         Label.FAITHFUL.name,
         Label.HALLUCINATED.name,
-    }:
+    }
+    smaller = min(labeled_faithful, labeled_hallucinated)
+    if not both_classes:
+        note = f"{note} Both classes were not present in the scored labeled rows, so AUROC was not computed."
+    elif smaller < BOOTSTRAP_MIN_PER_CLASS:
+        note = (
+            f"{note} Classification metrics and ECE were not published. "
+            f"The smaller labeled class has {smaller} scored rows, below {BOOTSTRAP_MIN_PER_CLASS}."
+        )
+    else:
         y_true = np.asarray(
             [1 if row["label"] == Label.HALLUCINATED.name else 0 for row in labeled], dtype=int
         )
@@ -181,8 +192,6 @@ def _report(rows: list[dict[str, object]], metadata: dict, loaded) -> dict[str, 
             baseline = compute_binary_metrics(y_true, baseline_probability, threshold=0.5)
         except ValueError as exc:
             baseline = {"note": str(exc)}
-    else:
-        note = f"{note} Both classes were not present in the scored labeled rows, so AUROC was not computed."
     return {
         "schema_version": 1,
         "protocol": LABEL_SOURCE,

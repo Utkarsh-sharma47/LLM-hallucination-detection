@@ -31,7 +31,7 @@ from glassbox.data.halueval import (
 from glassbox.data.schema import Label
 from glassbox.data.splits import assert_disjoint_ids
 from glassbox.demo_config import default_probe_dir, load_demo_config
-from glassbox.evaluation.metrics import compute_binary_metrics
+from glassbox.evaluation.metrics import bootstrap_interval, compute_binary_metrics
 from glassbox.evaluation.records import build_run_record, write_json
 from glassbox.models.backend import GenerationSettings, HuggingFaceBackend, completion_hidden_states
 from glassbox.probes.logistic import PROBE_NOT_TRAINED, LogisticProbe
@@ -54,6 +54,7 @@ from glassbox.reproducibility import mark_reproduction, pair_record_notes, requi
 
 MIN_TRAIN_PER_CLASS = 20
 REGISTERED_POSITION = "last_generated_token"
+PROTECTED_PAIR_RUN = "halueval-pair-002"
 
 
 @dataclass
@@ -179,6 +180,29 @@ def train_from_examples(
         report["test_metrics"] = test_metrics
         report["test_confusion"] = test_confusion
         report["metrics_scale"] = "Uncalibrated logistic probabilities at the validation threshold."
+        report["test_scores"] = [
+            {
+                "example_id": item.example_id,
+                "label": int(label),
+                "probe_score": float(score),
+            }
+            for item, label, score in zip(test, test_labels, test_scores, strict=True)
+        ]
+        interval = bootstrap_interval(
+            test_labels,
+            test_scores,
+            metric="auroc",
+            threshold=threshold,
+            seed=seed,
+        )
+        report["test_auroc_interval"] = interval
+        report["test_auroc_interval_note"] = (
+            "Percentile interval from resampling these scored test rows with replacement. "
+            "It does not transfer to another dataset or to Qwen's own generations. "
+            "An interval does not validate calibration."
+        )
+        if isinstance(report.get("baselines"), dict):
+            report["baselines"]["probe_auroc_interval"] = interval
         if (
             platt is not None
             and _enough_for_calibration(validation_labels)
@@ -309,6 +333,7 @@ def main(argv: list[str] | None = None) -> int:
 def train_command(args: argparse.Namespace) -> int:
     """Run the command and return a process status."""
     try:
+        assert_new_experiment_dir(repo_root() / "artifacts" / "experiments" / args.run_id)
         snapshot = _snapshot_path(args.snapshot)
         if args.download_data:
             if args.offline:
@@ -680,6 +705,9 @@ def _metadata(
         ),
         "test_ece": report.get("test_ece"),
         "test_confusion": report.get("test_confusion"),
+        "test_scores": _jsonable(report.get("test_scores")),
+        "test_auroc_interval": _jsonable(report.get("test_auroc_interval")),
+        "test_auroc_interval_note": report.get("test_auroc_interval_note"),
         "baselines": _jsonable(report.get("baselines")),
         "validation_layer_metrics": _jsonable(report.get("validation_layer_metrics")),
         "split_ids": {
@@ -729,6 +757,8 @@ def _write_experiment(
         # Don't write fake zeros as if they were measurements. Skip the run record if we have no metrics.
         print("No test metrics, so no experiment record was written.")
         return
+    root = repo_root() / "artifacts"
+    assert_new_experiment_dir(root / "experiments" / run_id)
     commit, dirty = _git_state()
     claim = mark_reproduction(dirty=dirty, finished_reproduction=not dirty)
     notes = pair_record_notes(
@@ -753,7 +783,6 @@ def _write_experiment(
         metrics={**metrics, "early_warning_lead": None},
         notes=notes,
     )
-    root = repo_root() / "artifacts"
     write_json(root / "experiments" / run_id / "record.json", record, root=root)
     write_json(
         root / "experiments" / run_id / "report.json",
@@ -780,6 +809,12 @@ def _print_report(outcome: TrainingOutcome) -> None:
         )
     if outcome.report.get("test_ece") is not None:
         print(f"  test ECE: {outcome.report['test_ece']:.3f}")
+    interval = outcome.report.get("test_auroc_interval")
+    if isinstance(interval, dict):
+        print(f"  test auroc interval: {interval}")
+        note = outcome.report.get("test_auroc_interval_note")
+        if isinstance(note, str):
+            print(f"  {note}")
     baselines = outcome.report.get("baselines")
     if isinstance(baselines, dict):
         for name, payload in baselines.items():
@@ -814,6 +849,18 @@ def _git_state() -> tuple[str, bool]:
         ).stdout.strip()
     )
     return commit, dirty
+
+
+def assert_new_experiment_dir(destination: Path) -> None:
+    """Refuse the saved pair-protocol run id and any directory that already exists."""
+    path = Path(destination)
+    if path.name == PROTECTED_PAIR_RUN:
+        raise ValueError(
+            f"Refusing to write {PROTECTED_PAIR_RUN}. That run is the saved pair-protocol artifact. "
+            "Pass a new --run-id."
+        )
+    if path.exists():
+        raise ValueError(f"Refusing to overwrite {path}. Pass a new --run-id.")
 
 
 def _snapshot_path(path: Path | None) -> Path:

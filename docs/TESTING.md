@@ -31,7 +31,7 @@ glassbox smoke test: ok (version=0.1.0, phase=scaffold, model=Qwen/Qwen2.5-3B-In
 | --- | --- |
 | `test_cli_modes.py` | `--samples` and `--analyze-text` do not construct a backend; Sydney false claim; offline config |
 | `test_workflow.py` | arbitrary questions, model kept loaded, blank-line exit, narrow report, export, command legend |
-| `test_probe_training.py` | one-class training does not borrow test rows; separable features score on held-out ids; the scaler is fit on training rows only |
+| `test_probe_training.py` | one-class training does not borrow test rows; separable features score on held-out ids and persist test scores plus a resampling interval; a test split below 20 per class stores a null interval and does not validate calibration; `halueval-pair-002` is not rewritten. The scaler is fit on training rows only |
 | `test_decoding.py` | greedy and temperature probabilities, full-vocabulary export stays out of the terminal |
 | `test_present.py` | token probability is not shown as factual risk |
 | `test_ask_terminal.py` | last-answer hidden-state index, incompatible probe, missing reference, ambiguous evidence, incomplete probe directory. A probe score on those rows stays `RISK NOT ASSESSED`. No Qwen load. |
@@ -41,7 +41,7 @@ glassbox smoke test: ok (version=0.1.0, phase=scaffold, model=Qwen/Qwen2.5-3B-In
 | `test_probe_status.py` | missing or uncalibrated probe labels |
 | `test_reproduction.py` | a dirty worktree is not a finished reproduction; ECE above 0.10 keeps calibration unvalidated. No Qwen load. |
 | `test_halueval_splits.py` | filters and disjoint question splits |
-| `test_truthfulqa_labels.py` | reference labels, paraphrase stays unvalidated, probe publish, lock message |
+| `test_truthfulqa_labels.py` | reference labels, paraphrase stays unvalidated, probe publish, lock message, small TruthfulQA generation reports do not publish classification metrics or ECE, unvalidated rows stay out of the metric denominator, and `audit_report` does not rewrite source metrics |
 | `test_generation_dataset.py` | frozen generation split, reference phrases, unvalidated and ambiguous rows kept out of both classes, pilot below the interval minimum, no pair-protocol metrics, refusal to write the saved probe directory. No Qwen load. |
 | `test_generation_record.py` | a generation-evaluation record fails without provenance, a per-example row, a clean worktree, or a probe when a score was requested. Excluded labels stay out of both classes. No Qwen load. |
 | `test_probe_transfer.py` | saved threshold 0.65 is required; an incompatible feature is not scored; ambiguous, unvalidated, and question-text overlap stay out of binary metrics; a missing provenance field or a failed record write leaves no file; generation ECE does not set `calibration_validated`; the interval stays null below 20 per class. No Qwen load. |
