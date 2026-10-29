@@ -333,6 +333,7 @@ def main(argv: list[str] | None = None) -> int:
 def train_command(args: argparse.Namespace) -> int:
     """Run the command and return a process status."""
     try:
+        assert_new_experiment_dir(repo_root() / "artifacts" / "experiments" / args.run_id)
         snapshot = _snapshot_path(args.snapshot)
         if args.download_data:
             if args.offline:

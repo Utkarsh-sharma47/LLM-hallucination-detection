@@ -1,5 +1,6 @@
 """The probe refuses a one-class training split and does not borrow test rows."""
 
+import argparse
 from pathlib import Path
 
 import numpy as np
@@ -14,6 +15,7 @@ from glassbox.probes.training import (
     PROTECTED_PAIR_RUN,
     FeatureExample,
     assert_new_experiment_dir,
+    train_command,
     train_from_examples,
 )
 
@@ -189,3 +191,18 @@ def test_saved_pair_run_id_is_not_rewritten(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="overwrite"):
         assert_new_experiment_dir(kept)
     assert (kept / "record.json").read_text(encoding="utf-8") == "keep"
+
+
+def test_train_command_refuses_protected_run_id_before_loading_qwen(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def boom(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("Qwen backend constructed")
+
+    monkeypatch.setattr("glassbox.probes.training.HuggingFaceBackend", boom)
+    monkeypatch.setattr("glassbox.probes.training.repo_root", lambda: tmp_path)
+    code = train_command(argparse.Namespace(run_id=PROTECTED_PAIR_RUN))
+    assert code == 1
+    err = capsys.readouterr().err
+    assert PROTECTED_PAIR_RUN in err
+    assert not (tmp_path / "artifacts" / "experiments" / PROTECTED_PAIR_RUN).exists()
