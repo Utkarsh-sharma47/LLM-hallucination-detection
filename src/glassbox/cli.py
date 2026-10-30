@@ -248,6 +248,40 @@ def main(argv: list[str] | None = None) -> int:
     variants.add_argument("--threshold", type=float, default=None)
     variants.add_argument("--pair-probe", type=Path, default=None)
     variants.add_argument("--run-id", default="generation-variants-001")
+    early = commands.add_parser(
+        "eval-early-warning",
+        help="Score earlier generated pieces. Does not publish a lead time or load Qwen.",
+    )
+    early.add_argument("--scores", type=Path, required=True)
+    early.add_argument("--run-id", default="early-warning-001")
+    layers = commands.add_parser(
+        "compare-generation-layers",
+        help="Compare pre-registered generation representations. Does not replace the pair probe.",
+    )
+    layers.add_argument("--predictions", type=Path, required=True)
+    layers.add_argument("--features", type=Path, default=None)
+    layers.add_argument("--seed", type=int, default=0)
+    layers.add_argument("--pair-probe", type=Path, default=None)
+    layers.add_argument("--run-id", default="generation-layers-001")
+    v2 = commands.add_parser(
+        "build-generation-v2",
+        help="Assemble generation dataset v2 without rewriting generation-001.",
+    )
+    v2.add_argument("--max-questions", type=int, default=2400)
+    v2.add_argument("--seed", type=int, default=0)
+    v2.add_argument("--snapshot", type=Path, default=None)
+    v2.add_argument("--predictions", type=Path, default=None)
+    v2.add_argument("--generated", type=Path, default=None)
+    v2.add_argument("--features", type=Path, default=None)
+    v2.add_argument("--threshold", type=float, default=None)
+    v2.add_argument("--pair-probe", type=Path, default=None)
+    v2.add_argument("--run-id", default="halueval-generation-002")
+    view = commands.add_parser(
+        "view-session",
+        help="Render a session JSON export as HTML. Does not load Qwen or claim calibrated risk.",
+    )
+    view.add_argument("--input", type=Path, required=True)
+    view.add_argument("--output", type=Path, default=None)
     args = parser.parse_args(argv)
     if args.command == "train-probe":
         from glassbox.probes.training import train_command
@@ -305,6 +339,22 @@ def main(argv: list[str] | None = None) -> int:
         from glassbox.probes.generation_variants import variants_command
 
         return variants_command(args)
+    if args.command == "eval-early-warning":
+        from glassbox.evaluation.early_warning import early_warning_command
+
+        return early_warning_command(args)
+    if args.command == "compare-generation-layers":
+        from glassbox.probes.layer_compare import layer_compare_command
+
+        return layer_compare_command(args)
+    if args.command == "build-generation-v2":
+        from glassbox.data.generation_v2 import v2_command
+
+        return v2_command(args)
+    if args.command == "view-session":
+        from glassbox.reports.session_view import view_command
+
+        return view_command(args)
     console = make_console()
     if args.samples:
         render_samples(console)
