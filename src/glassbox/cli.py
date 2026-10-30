@@ -7,6 +7,7 @@ reported as ``PROBE NOT TRAINED`` rather than replaced with a heuristic.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from dataclasses import replace
 from pathlib import Path
@@ -15,6 +16,7 @@ from rich.console import Console
 
 from glassbox.config import repo_root
 from glassbox.demo_config import default_probe_dir, load_demo_config
+from glassbox.glassbox_report import build_report
 from glassbox.models.backend import HuggingFaceBackend
 from glassbox.models.resources import ModelMemoryError
 from glassbox.present import (
@@ -25,7 +27,6 @@ from glassbox.present import (
     render_epilogue,
     render_external,
     render_samples,
-    render_turn,
 )
 from glassbox.probes.logistic import PROBE_NOT_TRAINED
 from glassbox.probes.store import load_probe
@@ -89,6 +90,12 @@ def main(argv: list[str] | None = None) -> int:
         choices=("topk", "full"),
         default="topk",
         help="topk stores the shown alternatives. full also keeps the vocabulary for export.",
+    )
+    parser.add_argument(
+        "--output-json",
+        type=Path,
+        default=None,
+        help="Export the analysis report as JSON to the specified path.",
     )
     commands = parser.add_subparsers(dest="command")
     train = commands.add_parser(
@@ -410,9 +417,9 @@ def main(argv: list[str] | None = None) -> int:
         print("Pass --question with --once.", file=sys.stderr)
         return 2
     if args.demo:
-        return _run_demo(session, console, detector)
+        return _run_demo(session, console, detector, args.output_json)
     if args.question:
-        code = _run_question(session, args.question, console)
+        code = _run_question(session, args.question, console, args.output_json)
         if code != 0 or args.once:
             return code
         if not _menu(session):
@@ -425,10 +432,12 @@ def app() -> None:
     raise SystemExit(main())
 
 
-def _run_demo(session: DemoSession, console: Console, detector: str) -> int:
+def _run_demo(
+    session: DemoSession, console: Console, detector: str, output_json: Path | None = None
+) -> int:
     collected = []
     for question in DEMO_QUESTIONS:
-        code = _run_question(session, question, console)
+        code = _run_question(session, question, console, output_json)
         if code != 0:
             return code
         collected.append(session.turns[-1])
@@ -465,7 +474,9 @@ def _analyze_text(
     return 0
 
 
-def _run_question(session: DemoSession, question: str, console: Console) -> int:
+def _run_question(
+    session: DemoSession, question: str, console: Console, output_json: Path | None = None
+) -> int:
     view = LiveTokenView(console, session.settings.max_new_tokens) if console.is_terminal else None
     try:
         _ensure_model(session, console)
@@ -477,12 +488,32 @@ def _run_question(session: DemoSession, question: str, console: Console) -> int:
     except (ModelMemoryError, OSError, ValueError, RuntimeError, ImportError) as exc:
         print(f"Generation failed: {exc}", file=sys.stderr)
         return 1
-    render_turn(console, turn)
+
+    # Use new Glass Box report format
+    catalog_path = repo_root() / "configs" / "claim_references.yaml"
+    report = build_report(
+        question=question,
+        generation=turn.generation,
+        turn=turn,
+        probe=session.probe,
+        catalog_path=catalog_path,
+    )
+
+    console.print(report.to_text())
+
+    # Export JSON if requested
+    if output_json is not None:
+        output_json.parent.mkdir(parents=True, exist_ok=True)
+        with output_json.open("w", encoding="utf-8") as f:
+            json.dump(report.to_json(), f, indent=2, default=str)
+        console.print(f"\n[dim]JSON report saved to: {output_json}[/dim]")
+
     return 0
 
 
 COMMAND_LEGEND = (
     "n = ask another question\n"
+    "r = show full report (10-section Glass Box analysis)\n"
     "t = token probability analysis — generated output-token probabilities and alternatives\n"
     "p = probe analysis — hidden-state probe score, separate from token probabilities\n"
     "v = reference verification — external curated check, separate from the probe\n"
@@ -535,11 +566,21 @@ def _menu(session: DemoSession) -> bool:
 
 def render_command(session: DemoSession, command: str, *, root: Path) -> str | None:
     """Return the text for an inspection command, or None when it is unknown."""
-    if command not in {"t", "p", "v", "d", "e"}:
+    if command not in {"r", "t", "p", "v", "d", "e"}:
         return None
     if not session.turns:
         return "No turn yet.\n"
     turn = session.turns[-1]
+    if command == "r":
+        catalog_path = repo_root() / "configs" / "claim_references.yaml"
+        report = build_report(
+            question=turn.generation.question,
+            generation=turn.generation,
+            turn=turn,
+            probe=session.probe,
+            catalog_path=catalog_path,
+        )
+        return report.to_text()
     if command == "t":
         return format_token_view(turn)
     if command == "p":
