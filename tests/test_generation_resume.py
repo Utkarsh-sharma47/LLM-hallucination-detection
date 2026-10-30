@@ -116,6 +116,8 @@ def test_resume_directory_allows_vectors_and_refuses_a_foreign_file(tmp_path: Pa
     directory = tmp_path / "run"
     (directory / "vectors").mkdir(parents=True)
     (directory / "answers.jsonl").write_text("", encoding="utf-8")
+    (directory / "integrity.json").write_text("{}", encoding="utf-8")
+    (directory / "review_queue.json").write_text("{}", encoding="utf-8")
     assert_resume_directory(directory)
     (directory / "probe.joblib").write_text("x", encoding="utf-8")
     with pytest.raises(FileExistsError, match="probe.joblib"):

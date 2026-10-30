@@ -23,7 +23,15 @@ ANSWERS_NAME = "answers.jsonl"
 FAILURES_NAME = "failures.jsonl"
 MANIFEST_NAME = "manifest.json"
 ALLOWED_FILES = frozenset(
-    {ANSWERS_NAME, FAILURES_NAME, MANIFEST_NAME, "predictions.json", "vectors"}
+    {
+        ANSWERS_NAME,
+        FAILURES_NAME,
+        MANIFEST_NAME,
+        "predictions.json",
+        "vectors",
+        "integrity.json",
+        "review_queue.json",
+    }
 )
 
 
