@@ -70,3 +70,6 @@ def test_early_warning_cli_writes_null_lead(tmp_path: Path, monkeypatch) -> None
     )
     assert report["early_warning_lead"] is None
     assert report["event_measurement_enabled"] is False
+    assert report["probe_applied"] is False
+    assert report["score_source"] == "clipped_mean_of_stored_vector"
+    assert "not a saved probe" in report["note"]
