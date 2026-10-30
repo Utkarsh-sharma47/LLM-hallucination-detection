@@ -22,7 +22,7 @@ Version `0.1.0`. No GitHub release has been cut. The code license is unselected:
 | Generation Dataset v2 | Assembler keeps 001 split membership. The 20-per-class target is not met. No human labels were invented. |
 | Session HTML view | `view-session` renders an exported `session.json` without presenting uncalibrated scores as factual-risk probabilities. |
 
-Details, conflicts, and the task list: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/ROADMAP.md](docs/ROADMAP.md), [docs/RESEARCH.md](docs/RESEARCH.md).
+Details, conflicts, and the task list: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/ROADMAP.md](docs/ROADMAP.md), [docs/RESEARCH.md](docs/RESEARCH.md), [docs/SCIENTIFIC_LIMITATIONS.md](docs/SCIENTIFIC_LIMITATIONS.md).
 
 ## Setup
 
@@ -97,6 +97,7 @@ python -m glassbox --offline eval-length-shortcut --controlled --run-id length-s
 python -m glassbox compare-generation-variants --predictions artifacts/experiments/halueval-generation-001/predictions.json \
   --run-id generation-variants-001 --threshold 0.25
 python -m glassbox plan-generation-expansion --max-questions 2400 --run-id halueval-generation-expansion-001
+python -m glassbox --offline generate-v2-answers --max-questions 2400 --run-id halueval-generation-v2-answers
 python -m glassbox build-generation-v2 --max-questions 2400 --run-id halueval-generation-002
 python -m glassbox compare-generation-layers --predictions artifacts/experiments/halueval-generation-001/predictions.json --run-id generation-layers-001
 python -m glassbox eval-early-warning --scores path/to/piece-vectors.json --run-id early-warning-001
