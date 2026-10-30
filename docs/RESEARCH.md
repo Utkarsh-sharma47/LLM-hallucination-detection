@@ -223,13 +223,13 @@ The live pair probe was scored on 52 **supplied** completions: 13 curated questi
 | Sentence hallucinated | 13 | 0.982 | — |
 | All 52, both classes 26 | 52 | — | 0.50 |
 
-Overall AUROC 0.494. Length–score correlation among faithful rows r=0.938. After matching completions within 15 characters, AUROC 0.438. The pair probe is ranking sentence form against short form, not factual correctness. That is the same pattern as the interactive `Paris.` false positive.
+Overall AUROC 0.494. Length–score correlation among faithful rows r=0.938. After matching completions within 15 characters, AUROC 0.438. The pair probe is ranking sentence form against short form, not factual correctness. That is the same pattern as the interactive `Paris.` false positive. The stored report does not contain a bootstrap interval. Both classes have 26 rows, and later runs record the interval instead of leaving it null. The stored file was not rewritten, so those AUROC figures stay the historical result.
 
 The generation-001 evidence-labeled rows are a different picture. Faithful and hallucinated generations have almost the same mean length (72.7 vs 71.8 characters). On the 20-row held-out test, last-piece AUROC 0.646 still sits below TF-IDF 0.657 and length 0.626. Length matching does not rescue a detector claim there. Mean-pooled hidden states were not stored on those rows, so that variant was skipped rather than invented.
 
 A 2400-question expansion plan keeps the 001 question ids in their original knowledge-group splits and would add 336 new validation and 336 new test questions. Known validation labels remain 14 faithful and 7 hallucinated. The 20-per-class target is not met until those new answers are generated or a human review cites passage evidence. Unvalidated rows were not converted into binary labels. The review command writes an append-only JSONL history beside the frozen `review_queue.json`.
 
-Issue #18 stays rejected: validation still has 7 hallucinated rows.
+Issue #18 stays rejected: validation still has 7 hallucinated rows. The gate reads pair-probe scores only. A generation-probe score, including a score that looks calibrated, does not open it, and pair-protocol Platt scaling does not mark the generation probe calibrated.
 
 ```bash
 python -m glassbox --offline eval-saved-probe --max-questions 200 --seed 0 \
