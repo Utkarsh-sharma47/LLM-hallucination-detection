@@ -113,14 +113,15 @@ python -m glassbox audit-generations --run-id truthfulqa-label-audit-001
 
 Not tested. No number belongs in this section.
 
-- An earlier generated token can flag a false claim before the answer is finished. `early_warning_lead` is a helper. No event token is defined. Issue #7.
+- An earlier generated token can flag a false claim before the answer is finished. The event index is defined as the first prefix labeled HALLUCINATED. `early_warning_lead` stays null because no run stores those prefix labels. Issue #7.
 - Editing the probed direction changes what Qwen writes. No activation edit has been run.
 - A layer other than the pre-registered last tensor would be a better generation feature. The generation run confirmed layer 24, dim 896, 25 tensors, and `last_generated_token` on the loaded model. It did not sweep layers. A mean over generated pieces scored 0.622 AUROC on 21 validation rows and was not allowed to replace the saved vector. Issue #13.
 
 ## Future work
 
-- A reviewed label set for the unvalidated generation queue, with contradiction defined against the passage rather than against the benchmark false span. The queue is `artifacts/experiments/halueval-generation-001/review_queue.json`. `review-generations` records an append-only history and does not invent labels. Issues #11 and #12. The 20-per-class target still needs those reviews or the 336 new validation questions from `halueval-generation-expansion-001`.
-- A generation calibration gate that is pre-registered before ECE is computed. Issue #18. The gate is implemented and currently rejects: validation has 7 hallucinated rows, below 20. The five-label TruthfulQA pilot is ineligible.
+- A reviewed label set for the unvalidated generation queue, with contradiction defined against the passage rather than against the benchmark false span. The queue is `artifacts/experiments/halueval-generation-001/review_queue.json` (590 unvalidated, 12 ambiguous). `review-generations` records an append-only history and does not invent labels. No human reviews have been appended. The 20-per-class target still needs those reviews or newly generated validation answers.
+- `generate-v2-answers` appends the 2400-question plan's missing answers under a new run id. It skips generation-001 ids, refuses that directory, and does not train a probe. Unfinished runs resume from `answers.jsonl`. Empty answers and revision mismatches stay in `failures.jsonl`.
+- A generation calibration gate that is pre-registered before ECE is computed. Issue #18. The gate is implemented and currently rejects: validation has 14 faithful and 7 hallucinated rows, both below 20. `calibration_validated` stays false. The ECE limit stays 0.10. The five-label TruthfulQA pilot is ineligible.
 - A generation record that fails closed when provenance or a per-example row is missing. Issue #17. The generation run stores provenance and sets `publishable_as_reproducible` false for a dirty tree. That is not the same as the fail-closed test those issues ask for.
 - A clean-checkout rerun of `halueval-pair-002`. Issue #8. Do not lower the ECE limit.
 
