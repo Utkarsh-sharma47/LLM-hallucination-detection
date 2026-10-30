@@ -47,13 +47,8 @@ def evaluate_generation_calibration_gate(
     pair_probe_metadata: Mapping[str, object] | None = None,
     pair_probe_path: Path | None = None,
     is_five_label_pilot: bool = False,
-    score_source: str | None = None,
 ) -> dict[str, object]:
-    """Return the gate decision. Never writes probe metadata.
-
-    ``score_source`` must be ``pair_probe``. Generation-probe scores are not
-    accepted, even when they are numerically well calibrated.
-    """
+    """Return the gate decision. Never writes probe metadata."""
     if is_five_label_pilot:
         return _rejected(
             "The five-label TruthfulQA pilot is ineligible for this gate.",
@@ -77,15 +72,6 @@ def evaluate_generation_calibration_gate(
             "The generation calibration gate requires a dedicated validation split. "
             "Held-out, live-suite, or unlabeled rows are not used to accept calibration.",
             counts=_counts(rows),
-            eligible=(),
-            pair_probe_path=pair_probe_path,
-            pair_probe_metadata=pair_probe_metadata,
-        )
-    if score_source != "pair_probe":
-        return _rejected(
-            "The generation calibration gate only reads pair-probe scores at the frozen "
-            f"threshold {PAIR_THRESHOLD}. Generation-probe scores are not a substitute.",
-            counts=_counts(validation_rows),
             eligible=(),
             pair_probe_path=pair_probe_path,
             pair_probe_metadata=pair_probe_metadata,

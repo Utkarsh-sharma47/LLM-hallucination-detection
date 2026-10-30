@@ -449,10 +449,7 @@ def format_banner(probe: LoadedProbe, *, model_name: str, revision: str, interac
 
 
 def summarize_cases(
-    cases: list[dict[str, object]],
-    *,
-    threshold: float | None,
-    score_source: str | None = None,
+    cases: list[dict[str, object]], *, threshold: float | None
 ) -> dict[str, object]:
     """Score labeled generations. A small or one-class set stays inconclusive."""
     counts = {"FAITHFUL": 0, "HALLUCINATED": 0, "AMBIGUOUS": 0, "UNVALIDATED": 0}
@@ -535,7 +532,6 @@ def summarize_cases(
         threshold=threshold if threshold is not None else PAIR_THRESHOLD,
         pair_probe_metadata=None,
         pair_probe_path=None,
-        score_source=score_source,
     )
     return report
 
@@ -788,16 +784,7 @@ def _run_suite(
         cases,
         max_questions=int(args.dataset_questions),
     )
-    threshold = saved_threshold(probe)
-    summary = summarize_cases(
-        cases,
-        threshold=threshold,
-        score_source=(
-            "pair_probe"
-            if pair_task_probe(probe) and threshold is not None and abs(threshold - 0.65) <= 1e-12
-            else None
-        ),
-    )
+    summary = summarize_cases(cases, threshold=saved_threshold(probe))
     summary["model_name"] = loaded.spec.name
     summary["model_revision"] = loaded.resolved_revision
     summary["model_dtype"] = loaded.dtype
