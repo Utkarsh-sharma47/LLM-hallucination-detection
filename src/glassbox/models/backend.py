@@ -20,6 +20,11 @@ from glassbox.activations.extract import (
     resolve_layer,
     vectors_at_position,
 )
+from glassbox.analysis.capture import (
+    select_layers,
+    slice_generated_spans,
+    spans_within_budget,
+)
 from glassbox.guards import reject_download
 from glassbox.models.distributions import (
     TokenAlternative,
@@ -120,6 +125,7 @@ class GenerationSettings:
     layer_index: int = -1
     position: str = "last_prompt_token"
     capture_all_layers: bool = False
+    capture_mode: str = "final"
     distribution_export: str = "topk"
 
     def __post_init__(self) -> None:
@@ -139,6 +145,8 @@ class GenerationSettings:
             raise ValueError("distribution_export must be topk or full")
         if isinstance(self.layer_index, bool) or not isinstance(self.layer_index, int):
             raise ValueError("layer_index must be an integer")
+        if self.capture_mode not in {"final", "generated", "selected", "all"}:
+            raise ValueError("capture_mode must be final, generated, selected, or all")
 
 
 @dataclass
@@ -201,6 +209,10 @@ class GenerationResult:
     decoding: str = "greedy"
     temperature: float = 0.0
     answer_mean_feature: np.ndarray | None = None
+    token_spans: dict[int, np.ndarray] | None = None
+    capture_mode: str = "final"
+    capture_bytes: int = 0
+    capture_note: str = ""
 
 
 class HuggingFaceBackend:
@@ -338,7 +350,7 @@ def run_generation(
     else:
         sequences = model_inputs["input_ids"]
     answer = tokenizer.decode(new_ids, skip_special_tokens=True).strip() if new_ids else ""
-    feature, layer_vectors, hidden_count, feature_layer, hidden_ok, note, answer_mean = (
+    feature, layer_vectors, hidden_count, feature_layer, hidden_ok, note, answer_mean, capture = (
         _read_hidden_states(
             model,
             sequences,
@@ -372,6 +384,10 @@ def run_generation(
         decoding="greedy" if settings.temperature <= 0 else "temperature",
         temperature=float(settings.temperature),
         answer_mean_feature=answer_mean,
+        token_spans=capture["spans"],
+        capture_mode=str(capture["mode"]),
+        capture_bytes=int(capture["nbytes"]),
+        capture_note=str(capture["note"]),
     )
 
 
@@ -405,12 +421,14 @@ def completion_hidden_states(
         raise ValueError("prompt plus completion is longer than 256 tokens")
     continuation = torch.tensor([answer_ids], device=device, dtype=input_ids.dtype)
     sequences = torch.cat([input_ids, continuation], dim=1)
-    _feature, vectors, hidden_count, feature_layer, ok, note, _answer_mean = _read_hidden_states(
-        loaded.model,
-        sequences,
-        prompt_tokens=int(input_ids.shape[1]),
-        generated_count=len(answer_ids),
-        settings=settings,
+    _feature, vectors, hidden_count, feature_layer, ok, note, _answer_mean, _capture = (
+        _read_hidden_states(
+            loaded.model,
+            sequences,
+            prompt_tokens=int(input_ids.shape[1]),
+            generated_count=len(answer_ids),
+            settings=settings,
+        )
     )
     if not ok or hidden_count is None or feature_layer is None:
         raise RuntimeError(note or "Hidden states were unavailable")
@@ -604,23 +622,81 @@ def _read_hidden_states(
     generated_count: int,
     settings: GenerationSettings,
 ) -> tuple[
-    np.ndarray | None, dict[int, np.ndarray], int | None, int | None, bool, str, np.ndarray | None
+    np.ndarray | None,
+    dict[int, np.ndarray],
+    int | None,
+    int | None,
+    bool,
+    str,
+    np.ndarray | None,
+    dict[str, object],
 ]:
     torch = _import_torch()
     try:
         position = feature_index(prompt_tokens, generated_count, settings.position)
     except ValueError as exc:
-        return None, {}, None, None, False, str(exc), None
+        return (
+            None,
+            {},
+            None,
+            None,
+            False,
+            str(exc),
+            None,
+            {"mode": settings.capture_mode, "spans": {}, "nbytes": 0, "note": str(exc)},
+        )
     try:
         with torch.inference_mode():
             forward = model(sequences, output_hidden_states=True, use_cache=False)
     except (MemoryError, RuntimeError) as exc:
         if _is_memory_error(exc):
-            return None, {}, None, None, False, "Hidden-state forward pass ran out of memory.", None
-        return None, {}, None, None, False, f"Hidden-state forward pass failed: {exc}", None
+            return (
+                None,
+                {},
+                None,
+                None,
+                False,
+                "Hidden-state forward pass ran out of memory.",
+                None,
+                {
+                    "mode": settings.capture_mode,
+                    "spans": {},
+                    "nbytes": 0,
+                    "note": "Hidden-state forward pass ran out of memory.",
+                },
+            )
+        return (
+            None,
+            {},
+            None,
+            None,
+            False,
+            f"Hidden-state forward pass failed: {exc}",
+            None,
+            {
+                "mode": settings.capture_mode,
+                "spans": {},
+                "nbytes": 0,
+                "note": f"Hidden-state forward pass failed: {exc}",
+            },
+        )
     hidden_states = forward.hidden_states
     if not hidden_states:
-        return None, {}, None, None, False, "The model returned no hidden states.", None
+        return (
+            None,
+            {},
+            None,
+            None,
+            False,
+            "The model returned no hidden states.",
+            None,
+            {
+                "mode": settings.capture_mode,
+                "spans": {},
+                "nbytes": 0,
+                "note": "The model returned no hidden states.",
+            },
+        )
     feature_layer = resolve_layer(len(hidden_states), settings.layer_index)
     layers = None if settings.capture_all_layers else (feature_layer,)
     vectors = vectors_at_position(hidden_states, position, layers=layers)
@@ -633,7 +709,45 @@ def _read_hidden_states(
             )
         except ValueError:
             answer_mean = None
-    return feature, vectors, len(hidden_states), feature_layer, feature is not None, "", answer_mean
+
+    # Capture token spans based on capture_mode
+    capture_layers = select_layers(len(hidden_states), settings.capture_mode, feature_layer)
+    token_spans = {}
+    capture_note = ""
+    if generated_count >= 1 and capture_layers:
+        try:
+            selected, note = spans_within_budget(
+                generated_count, capture_layers, int(hidden_states[0].shape[2])
+            )
+            if note:
+                capture_note = note
+            if selected:
+                token_spans = slice_generated_spans(
+                    hidden_states,
+                    prompt_tokens=prompt_tokens,
+                    generated_count=generated_count,
+                    layers=selected,
+                )
+        except (ValueError, RuntimeError) as exc:
+            capture_note = f"Token span capture failed: {exc}"
+
+    capture_bytes = sum(span.nbytes for span in token_spans.values())
+
+    return (
+        feature,
+        vectors,
+        len(hidden_states),
+        feature_layer,
+        feature is not None,
+        "",
+        answer_mean,
+        {
+            "mode": settings.capture_mode,
+            "spans": token_spans,
+            "nbytes": capture_bytes,
+            "note": capture_note or "Capture completed.",
+        },
+    )
 
 
 def _from_pretrained(transformers: Any, spec: ModelSpec, dtype: Any) -> Any:
