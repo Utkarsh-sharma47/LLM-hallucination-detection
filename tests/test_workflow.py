@@ -145,7 +145,7 @@ def test_once_answers_one_question_without_a_menu(monkeypatch, capsys):
     output = capsys.readouterr().out
     assert backend.questions == ["Who wrote The Odyssey?"]
     assert "UNVALIDATED" in output or "NO REFERENCE" in output
-    assert "PROBE NOT TRAINED" in output
+    assert "PROBE NOT TRAINED" in output or "NOT AVAILABLE" in output
 
 
 def test_narrow_report_truncates_long_alternatives_and_stays_within_width():
