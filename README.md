@@ -18,6 +18,7 @@ Version `0.1.0`. No GitHub release has been cut. The code license is unselected:
 | TruthfulQA generation check | 40 generated answers, 5 labeled by a listed reference, 35 unvalidated. Not evidence for the pair AUROC. Early detection and activation intervention are not implemented. |
 | Generation-trained probe | Separate run under `artifacts/probes/generation-runs/`. It does not replace the live pair probe. The recorded `halueval-generation-001` run is **not** a validated detector (test AUROC 0.646 on 20 labeled rows, below TF-IDF 0.657). |
 | Generation calibration gate (#18) | Pre-registered: threshold 0.65, 20 rows per class, ECE ≤ 0.10 on validation. Until it passes, the demo keeps `EXPERIMENTAL PROBE SCORE` and `RISK NOT ASSESSED`. |
+| Pair-probe length diagnostic | On 52 controlled completions (13 questions × short/sentence × faithful/false), AUROC 0.494. Sentence-form faithful FPR 1.0; short faithful FPR 0.0. The live pair probe tracks answer format, not factual correctness. |
 
 Details, conflicts, and the task list: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/ROADMAP.md](docs/ROADMAP.md), [docs/RESEARCH.md](docs/RESEARCH.md).
 
@@ -87,6 +88,13 @@ python -m glassbox text-baselines --max-questions 200 --run-id halueval-text-bas
 python -m glassbox --offline eval-truthfulqa --max-questions 40
 python -m glassbox --offline train-generation-probe --max-questions 240 --run-id a-new-generation-run
 python -m glassbox live-test --suite --run-id live-terminal-001
+python -m glassbox review-generations --show 5
+python -m glassbox eval-length-shortcut --predictions artifacts/experiments/halueval-generation-001/predictions.json \
+  --run-id length-shortcut-generation-001 --threshold 0.25
+python -m glassbox --offline eval-length-shortcut --controlled --run-id length-shortcut-pair-controlled-001
+python -m glassbox compare-generation-variants --predictions artifacts/experiments/halueval-generation-001/predictions.json \
+  --run-id generation-variants-001 --threshold 0.25
+python -m glassbox plan-generation-expansion --max-questions 2400 --run-id halueval-generation-expansion-001
 python -m glassbox freeze-generation-split --max-questions 40 --seed 0
 python -m glassbox build-generation-dataset --split path/to/split.json --answers path/to/answers.json \
   --model-name Qwen/Qwen2.5-0.5B-Instruct \

@@ -211,6 +211,26 @@ python -m glassbox --offline train-generation-probe \
 
 The command refuses an existing run directory and refuses `final-hidden-state`. Do not rerun `halueval-generation-001` against the already-seen test split.
 
+## Length and format diagnostic
+
+The live pair probe was scored on 52 **supplied** completions: 13 curated questions, each with a short faithful answer, a sentence-form faithful answer, a short false answer, and a sentence-form false answer. Hidden states were read with `completion_hidden_states`. The threshold stayed 0.65. Pair-probe metadata was not rewritten.
+
+| Slice | n | Mean score | FPR at 0.65 |
+| --- | --- | --- | --- |
+| Short faithful (`Paris`) | 13 | 0.029 | 0.00 |
+| Sentence faithful (`The answer is Paris.`) | 13 | 0.995 | 1.00 |
+| Short hallucinated | 13 | 0.029 | — |
+| Sentence hallucinated | 13 | 0.982 | — |
+| All 52, both classes 26 | 52 | — | 0.50 |
+
+Overall AUROC 0.494. Length–score correlation among faithful rows r=0.938. After matching completions within 15 characters, AUROC 0.438. The pair probe is ranking sentence form against short form, not factual correctness. That is the same pattern as the interactive `Paris.` false positive.
+
+The generation-001 evidence-labeled rows are a different picture. Faithful and hallucinated generations have almost the same mean length (72.7 vs 71.8 characters). On the 20-row held-out test, last-piece AUROC 0.646 still sits below TF-IDF 0.657 and length 0.626. Length matching does not rescue a detector claim there. Mean-pooled hidden states were not stored on those rows, so that variant was skipped rather than invented.
+
+A 2400-question expansion plan keeps the 001 question ids in their original knowledge-group splits and would add 336 new validation and 336 new test questions. Known validation labels remain 14 faithful and 7 hallucinated. The 20-per-class target is not met until those new answers are generated or a human review cites passage evidence. Unvalidated rows were not converted into binary labels. The review command writes an append-only JSONL history beside the frozen `review_queue.json`.
+
+Issue #18 stays rejected: validation still has 7 hallucinated rows.
+
 ```bash
 python -m glassbox --offline eval-saved-probe --max-questions 200 --seed 0 \
   --run-id truthfulqa-probe-transfer-001 \
@@ -249,6 +269,10 @@ python -m glassbox --offline eval-truthfulqa --max-questions 40 --run-id truthfu
 python -m glassbox --offline eval-saved-probe
 python -m glassbox --offline train-generation-probe --max-questions 240 --run-id a-new-generation-run
 python -m glassbox live-test --suite --run-id live-terminal-001
+python -m glassbox review-generations --show 5
+python -m glassbox eval-length-shortcut --controlled --run-id length-shortcut-pair-controlled-001
+python -m glassbox compare-generation-variants --predictions artifacts/experiments/halueval-generation-001/predictions.json --run-id generation-variants-001 --threshold 0.25
+python -m glassbox plan-generation-expansion --max-questions 2400 --run-id halueval-generation-expansion-001
 python -m glassbox freeze-generation-split --max-questions 40 --seed 0
 python -m glassbox build-generation-dataset --split path/to/split.json --answers path/to/answers.json \
   --model-name Qwen/Qwen2.5-0.5B-Instruct \

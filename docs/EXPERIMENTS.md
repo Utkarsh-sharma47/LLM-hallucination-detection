@@ -44,6 +44,10 @@ python -m glassbox text-baselines --max-questions 200 --run-id halueval-text-bas
 | Generation coverage | 590 of 720 development answers stayed `UNVALIDATED`. 12 were `AMBIGUOUS`. Those rows were excluded from training. No human review file was applied. |
 | Generation provenance | Recorded commit `9692d1ff8f4c205274a53d399894f632e4d7a3fd` with a dirty worktree. `publishable_as_reproducible` is false. That commit does not contain the training code. |
 | Pair probe on the generation test | At threshold 0.65: AUROC 0.333, tn 0, fp 9, fn 1, tp 10. The pair AUROC of 0.996 is a different task. |
+| `length-shortcut-pair-controlled-001` | 13 curated questions × four supplied completions (short/sentence × faithful/false). Pair probe, frozen threshold 0.65. AUROC 0.494. Short faithful FPR 0.0 (mean score 0.029). Sentence faithful FPR 1.0 (mean score 0.995). Short false answers also scored ~0.03. Length–score correlation among faithful rows r=0.938. The pair probe is scoring answer format, not factual correctness. Pair metadata was not rewritten. |
+| `length-shortcut-generation-001` | Same generation-001 binary labels (118 rows, mixed splits). Faithful and hallucinated answers have almost the same mean length (72.7 vs 71.8 characters). Score–length r=0.032. This does not explain the held-out generation failure. |
+| `generation-variants-001` | Frozen last-piece vs length vs TF-IDF on the generation-001 splits. Test AUROC last-piece 0.646, TF-IDF 0.657, length 0.626. Validation 14/7 labeled rows. Issue #18 gate rejected. Mean-pool skipped: those vectors were not stored. No live probe was written. |
+| `halueval-generation-expansion-001` | Plan only. Seed 0, 2400-question prefix. Known labels stay in their original splits. New questions: 1008 train, 336 validation, 336 test. Known validation is still 14 faithful / 7 hallucinated. The 20-per-class target is not met until those new questions are generated or reviewed. No human labels were invented. |
 | TruthfulQA external slice of `halueval-generation-001` | 3 faithful, 3 hallucinated, 34 unvalidated, 1 coverage upgrade. AUROC 0.444 on 6 rows. Threshold was frozen at 0.25 and was not fit here. |
 
 Generation command. It refuses an existing run directory and refuses `final-hidden-state`:
@@ -112,8 +116,8 @@ Not tested. No number belongs in this section.
 
 ## Future work
 
-- A reviewed label set for the unvalidated generation queue, with contradiction defined against the passage rather than against the benchmark false span. The queue is `artifacts/experiments/halueval-generation-001/review_queue.json`. Issues #11 and #12. The generation run does not close them: it trained a new probe, it refit the threshold to 0.25, and the labeled test class is below 20.
-- A generation calibration gate that is pre-registered before ECE is computed. Issue #18. The five-label TruthfulQA pilot is ineligible. `halueval-generation-001` also missed the existing 15-per-class rule.
+- A reviewed label set for the unvalidated generation queue, with contradiction defined against the passage rather than against the benchmark false span. The queue is `artifacts/experiments/halueval-generation-001/review_queue.json`. `review-generations` records an append-only history and does not invent labels. Issues #11 and #12. The 20-per-class target still needs those reviews or the 336 new validation questions from `halueval-generation-expansion-001`.
+- A generation calibration gate that is pre-registered before ECE is computed. Issue #18. The gate is implemented and currently rejects: validation has 7 hallucinated rows, below 20. The five-label TruthfulQA pilot is ineligible.
 - A generation record that fails closed when provenance or a per-example row is missing. Issue #17. The generation run stores provenance and sets `publishable_as_reproducible` false for a dirty tree. That is not the same as the fail-closed test those issues ask for.
 - A clean-checkout rerun of `halueval-pair-002`. Issue #8. Do not lower the ECE limit.
 

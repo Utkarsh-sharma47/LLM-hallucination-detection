@@ -48,6 +48,10 @@ glassbox smoke test: ok (version=0.1.0, phase=scaffold, model=Qwen/Qwen2.5-3B-In
 | `test_generation_probe.py` | generation evidence labels, knowledge-group splits, refusal to overwrite the live pair probe, one-class training pool, and a synthetic generation probe that is not installed as the live probe. No Qwen load. |
 | `test_generation_calibration.py` | issue #18 gate: five-label pilot ineligible, fewer than 20 per class, ECE above 0.10, and a refit threshold 0.25 all leave `RISK NOT ASSESSED` and do not rewrite pair-probe metadata. No Qwen load. |
 | `test_live_test.py` | suite categories, the `Paris.` regression stays faithful while a high probe score stays a separate prediction, missing references, intermediate-position refusal, inconclusive small samples, and a missing probe does not load Qwen. |
+| `test_review_log.py` | append-only review history, revisions keep earlier events, missing or invalid labels refused, unvalidated rows are not auto-converted, and the generation-001 queue file is not rewritten. No Qwen load. |
+| `test_length_shortcut.py` | controlled short vs sentence variants, sentence-faithful false positives reported as a format effect, threshold stays 0.65, and pair-probe metadata is not rewritten. No Qwen load in the unit tests. |
+| `test_generation_expand.py` | larger prefix splits keep known question ids, split leakage is refused, unvalidated rows are not counted as binary, and `halueval-generation-001` cannot be reused as the run id. No Qwen load. |
+| `test_generation_variants.py` | frozen last-piece vs length vs TF-IDF on one split, below-20 reports inconclusive, calibration gate rejected, historical generation run and `final-hidden-state` refused. No Qwen load. |
 | `test_research_baselines.py` | shared scaler, text baseline, tiny-sample interval refusal, ambiguous label, saturated experimental score still says risk is not assessed. No Qwen load. The saved-probe metadata check skips when the gitignored artifact is absent. |
 
 `research_tests/` is the scaffold:
