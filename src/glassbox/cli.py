@@ -276,6 +276,20 @@ def main(argv: list[str] | None = None) -> int:
     v2.add_argument("--threshold", type=float, default=None)
     v2.add_argument("--pair-probe", type=Path, default=None)
     v2.add_argument("--run-id", default="halueval-generation-002")
+    missing = commands.add_parser(
+        "generate-v2-answers",
+        help=(
+            "Generate expansion questions that generation-001 does not already contain. "
+            "Requires --offline. Does not train a probe or rewrite generation-001."
+        ),
+    )
+    missing.add_argument("--run-id", default="halueval-generation-v2-answers")
+    missing.add_argument("--max-questions", type=int, default=2400)
+    missing.add_argument("--seed", type=int, default=0)
+    missing.add_argument("--limit", type=int, default=None)
+    missing.add_argument("--snapshot", type=Path, default=None)
+    missing.add_argument("--cached", type=Path, default=None)
+    missing.add_argument("--artifacts-root", type=Path, default=None)
     view = commands.add_parser(
         "view-session",
         help="Render a session JSON export as HTML. Does not load Qwen or claim calibrated risk.",
@@ -351,6 +365,10 @@ def main(argv: list[str] | None = None) -> int:
         from glassbox.data.generation_v2 import v2_command
 
         return v2_command(args)
+    if args.command == "generate-v2-answers":
+        from glassbox.data.generation_resume import generate_missing_command
+
+        return generate_missing_command(args)
     if args.command == "view-session":
         from glassbox.reports.session_view import view_command
 
