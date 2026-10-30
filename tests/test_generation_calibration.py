@@ -50,6 +50,7 @@ def test_below_twenty_per_class_leaves_risk_unassessed(tmp_path: Path) -> None:
         rows,
         pair_probe_metadata={"calibration_validated": False, "threshold": 0.65},
         pair_probe_path=metadata_path,
+        score_source="pair_probe",
     )
     assert decision["calibration_validated"] is False
     assert decision["factual_risk_available"] is False
@@ -72,6 +73,7 @@ def test_ece_above_limit_leaves_risk_unassessed(tmp_path: Path) -> None:
         rows,
         pair_probe_metadata={"calibration_validated": False},
         pair_probe_path=metadata_path,
+        score_source="pair_probe",
     )
     assert decision["ece"] is not None
     assert decision["ece"] > GENERATION_CALIBRATION_ECE_LIMIT
@@ -90,7 +92,7 @@ def test_unvalidated_and_ambiguous_stay_out_of_the_denominator() -> None:
     )
     rows.extend(_row("ambiguous", Label.AMBIGUOUS, 0.99) for _ in range(8))
     rows.append(_row("missing", Label.FAITHFUL, None))
-    decision = evaluate_generation_calibration_gate(rows)
+    decision = evaluate_generation_calibration_gate(rows, score_source="pair_probe")
     assert decision["sample_counts"]["unvalidated"] == 10
     assert decision["sample_counts"]["ambiguous"] == 8
     assert decision["sample_counts"]["eligible_faithful"] == 20
@@ -107,6 +109,25 @@ def test_a_refit_threshold_is_refused() -> None:
     assert decision["status"] == "rejected"
     assert "0.65" in str(decision["reason"])
     assert decision["calibration_validated"] is False
+
+
+def test_generation_probe_scores_cannot_open_the_gate() -> None:
+    rows = _rows(
+        faithful=20, hallucinated=20, unvalidated=0, score_faithful=0.02, score_hallucinated=0.98
+    )
+    decision = evaluate_generation_calibration_gate(rows, threshold=PAIR_THRESHOLD)
+    assert decision["status"] == "rejected"
+    assert decision["calibration_validated"] is False
+    assert decision["factual_risk_available"] is False
+    assert decision["ece"] is None
+    assert decision["score_name"] == SCORE_NAME
+    assert "pair-probe" in str(decision["reason"])
+    accepted = evaluate_generation_calibration_gate(
+        rows, threshold=PAIR_THRESHOLD, score_source="pair_probe"
+    )
+    assert accepted["status"] == "accepted"
+    assert accepted["calibration_validated"] is True
+    assert accepted["ece"] < GENERATION_CALIBRATION_ECE_LIMIT
 
 
 def test_held_out_rows_without_a_validation_split_are_ineligible() -> None:

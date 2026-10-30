@@ -299,30 +299,41 @@ def finalize_generation_run(
     validation_counts = outcome.report.get("validation_class_counts") or {}
     test_counts = outcome.report.get("test_class_counts") or {}
     test_ece = outcome.report.get("test_ece")
-    report["calibration"] = calibration_decision(
+    platt = calibration_decision(
         validation_counts if isinstance(validation_counts, dict) else {},
         test_counts if isinstance(test_counts, dict) else {},
         float(test_ece) if isinstance(test_ece, (int, float)) else None,
     )
-    if outcome.calibration_validated:
-        report["calibration"] = {
-            "status": "accepted",
-            "calibration_validated": True,
-            "test_ece": test_ece,
-            "reason": "The training routine accepted Platt scaling under the pre-registered rule.",
-        }
+    report["generation_probe_platt"] = platt
+    report["calibration"] = {
+        "status": "rejected",
+        "calibration_validated": False,
+        "test_ece": platt.get("test_ece") if isinstance(platt, dict) else None,
+        "reason": (
+            "The generation probe stays uncalibrated. Pair-protocol Platt scaling is stored "
+            "as generation_probe_platt and cannot accept this run. Issue #18 is the only path "
+            "that may describe a pair-probe score as a calibrated probability."
+        ),
+    }
     probe_metrics = outcome.metrics
     conclusion = interpret_detector(probe_metrics, baselines if isinstance(baselines, dict) else {})
-    if report["calibration"]["status"] != "accepted":
-        conclusion["calibration"] = "rejected_or_unavailable"
-        conclusion["score_semantics"] = "EXPERIMENTAL PROBE SCORE; RISK NOT ASSESSED"
+    conclusion["calibration"] = "rejected_or_unavailable"
+    conclusion["score_semantics"] = "EXPERIMENTAL PROBE SCORE; RISK NOT ASSESSED"
+    conclusion["factual_risk_available"] = False
+    if conclusion.get("successful_detector") is True:
+        conclusion["reason"] = (
+            "On this split the hidden-state AUROC is above the recorded text baselines. "
+            "That comparison is not a validated detector, and pair-protocol Platt scaling "
+            "does not accept the issue #18 gate."
+        )
+    conclusion["successful_detector"] = False
     report["generation_calibration_gate"] = _generation_calibration_gate(
         scored_rows, pair_probe_dir
     )
     if report["generation_calibration_gate"]["status"] != "accepted":
-        conclusion["calibration"] = "rejected_or_unavailable"
-        conclusion["score_semantics"] = "EXPERIMENTAL PROBE SCORE; RISK NOT ASSESSED"
-        conclusion["factual_risk_available"] = False
+        conclusion["reason"] = (
+            f"{conclusion['reason']} {report['generation_calibration_gate'].get('reason', '')}"
+        ).strip()
     report["detector_conclusion"] = conclusion
     if external_rows and outcome.saved and outcome.threshold is not None:
         _score_external(external_rows, probe_dir)
@@ -752,26 +763,64 @@ def _pair_comparison(probe_dir: Path | None, test_rows: list[dict[str, object]],
 def _generation_calibration_gate(
     scored_rows: list[dict[str, object]], pair_probe_dir: Path | None
 ) -> dict[str, object]:
-    """Issue #18. Pair-probe metadata is read, never rewritten."""
+    """Issue #18. Pair-probe metadata is read, never rewritten.
+
+    Scores come from the saved pair probe. The generation probe's own
+    ``probe_score`` is not sent to the gate.
+    """
     metadata = None
     path = Path(pair_probe_dir) if pair_probe_dir is not None else None
+    loaded = None
     if path is not None and (path / "metadata.json").is_file():
         metadata = json.loads((path / "metadata.json").read_text(encoding="utf-8"))
-    gate_rows = [
-        {
-            "question_id": row["question_id"],
-            "split": row.get("split"),
-            "label": row.get("label_name") or row.get("label"),
-            "probe_score": row.get("probe_score"),
-            "split_overlap": False,
-        }
-        for row in scored_rows
-    ]
+        try:
+            loaded = load_probe(path)
+        except (OSError, ValueError, ProbeCompatibilityError):
+            loaded = None
+    compatible = loaded is not None
+    gate_rows: list[dict[str, object]] = []
+    for row in scored_rows:
+        score = None
+        vector = row.get("vector")
+        if loaded is not None and vector is not None:
+            try:
+                check_compatibility(
+                    loaded,
+                    model_name=str(row["model_name"]),
+                    model_revision=str(row["model_revision"]),
+                    layer_index=int(row["feature_layer"]),
+                    hidden_state_count=int(row["hidden_state_count"]),
+                    position=str(row["position"]),
+                    prompt_mode=str(row["prompt_mode"]),
+                    feature_dim=int(np.asarray(vector).shape[0]),
+                    dtype=str(row["dtype"]),
+                )
+                score = experimental_score(loaded, np.asarray(vector, dtype=np.float64))
+            except (ProbeCompatibilityError, ValueError, KeyError, TypeError):
+                compatible = False
+                score = None
+        elif loaded is not None:
+            compatible = False
+        gate_rows.append(
+            {
+                "question_id": row.get("question_id"),
+                "split": row.get("split"),
+                "label": row.get("label_name") or row.get("label"),
+                "probe_score": score,
+                "split_overlap": False,
+            }
+        )
+    threshold = PAIR_THRESHOLD
+    if isinstance(metadata, dict):
+        raw_threshold = metadata.get("threshold")
+        if isinstance(raw_threshold, (int, float)) and not isinstance(raw_threshold, bool):
+            threshold = float(raw_threshold)
     return evaluate_generation_calibration_gate(
         gate_rows,
-        threshold=PAIR_THRESHOLD,
-        pair_probe_metadata=metadata,
+        threshold=threshold,
+        pair_probe_metadata=metadata if isinstance(metadata, dict) else None,
         pair_probe_path=path,
+        score_source="pair_probe" if compatible else None,
     )
 
 
