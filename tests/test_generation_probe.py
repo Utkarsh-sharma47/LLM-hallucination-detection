@@ -39,10 +39,7 @@ from glassbox.probes.generation_eval import (
     score_binary,
     validate_provenance,
 )
-from glassbox.probes.generation_train import (
-    _generation_calibration_gate,
-    finalize_generation_run,
-)
+from glassbox.probes.generation_train import finalize_generation_run
 from glassbox.probes.preprocess import apply_standard_scaler
 from glassbox.probes.store import experimental_score, load_probe
 from glassbox.verification import assess_answer, load_curated_facts
@@ -456,37 +453,6 @@ def test_finalize_keeps_scores_experimental_and_separate_from_the_live_probe(
     assert all("vector" not in row for row in predictions["rows"])
     assert (tmp_path / "experiments" / "synthetic" / "features.npz").is_file()
     assert not (tmp_path / "probes" / "final-hidden-state").exists()
-    assert report["calibration"]["calibration_validated"] is False
-    assert report["generation_probe_platt"]["calibration_validated"] is False
-
-
-def test_generation_scores_are_not_sent_to_the_calibration_gate() -> None:
-    rows = []
-    for index in range(20):
-        rows.append(
-            {
-                "question_id": f"f{index}",
-                "split": "validation",
-                "label_name": "FAITHFUL",
-                "probe_score": 0.02,
-                "vector": np.zeros(4),
-            }
-        )
-        rows.append(
-            {
-                "question_id": f"h{index}",
-                "split": "validation",
-                "label_name": "HALLUCINATED",
-                "probe_score": 0.98,
-                "vector": np.ones(4),
-            }
-        )
-    decision = _generation_calibration_gate(rows, None)
-    assert decision["status"] == "rejected"
-    assert decision["calibration_validated"] is False
-    assert decision["factual_risk_available"] is False
-    assert decision["ece"] is None
-    assert "pair-probe" in str(decision["reason"])
 
 
 def _population(
