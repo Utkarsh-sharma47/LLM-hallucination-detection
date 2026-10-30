@@ -23,15 +23,7 @@ ANSWERS_NAME = "answers.jsonl"
 FAILURES_NAME = "failures.jsonl"
 MANIFEST_NAME = "manifest.json"
 ALLOWED_FILES = frozenset(
-    {
-        ANSWERS_NAME,
-        FAILURES_NAME,
-        MANIFEST_NAME,
-        "predictions.json",
-        "vectors",
-        "integrity.json",
-        "review_queue.json",
-    }
+    {ANSWERS_NAME, FAILURES_NAME, MANIFEST_NAME, "predictions.json", "vectors"}
 )
 
 
@@ -334,14 +326,8 @@ def generate_missing_command(args: object) -> int:
                     "generated_piece_count": int(result.generated_tokens),
                     "prompt_piece_count": int(result.prompt_tokens),
                     "source": "generated_v2",
-                    "label_origin": "halueval_generation_evidence_v1",
-                    "human_confirmed": False,
                     "vector_file": str(vector_path.name),
                     "calibration_validated": False,
-                    "seed": int(args.seed),
-                    "temperature": 0.0,
-                    "answer_piece_limit": int(config.generation.max_new_tokens),
-                    "prompt_mode": result.prompt_mode,
                 },
             )
             saved += 1
