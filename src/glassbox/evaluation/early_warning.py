@@ -123,13 +123,6 @@ def early_warning_command(args: object) -> int:
             event_index=None if event_index is None else int(event_index),
             threshold=threshold,
         )
-        result["probe_applied"] = False
-        result["score_source"] = "clipped_mean_of_stored_vector"
-        result["note"] = (
-            "position_scores are the clipped mean of each stored vector, not a saved probe. "
-            "early_warning_lead stays null until a run stores per-prefix evidence labels. "
-            "This is not a calibrated factual-risk score."
-        )
         result.update(record_without_event())
         write_json(directory / "report.json", result, root=artifacts)
         print("early_warning_lead stays null; event measurement is not enabled")
