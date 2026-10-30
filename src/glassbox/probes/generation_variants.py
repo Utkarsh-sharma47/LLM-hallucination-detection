@@ -124,20 +124,26 @@ def evaluate_generation_variants(
         grouped["test"],
         threshold=PAIR_THRESHOLD if frozen_threshold is None else float(frozen_threshold),
     )
-    gate_rows = [
-        {
-            "question_id": row["question_id"],
-            "split": row["split"],
-            "label": "HALLUCINATED" if int(row["label"]) == 1 else "FAITHFUL",
-            "probe_score": row.get("probe_score"),
-            "split_overlap": False,
-        }
-        for row in binary
-    ]
+    gate_rows = []
+    have_pair_scores = bool(binary)
+    for row in binary:
+        pair_score = row.get("pair_probe_score")
+        if pair_score is None:
+            have_pair_scores = False
+        gate_rows.append(
+            {
+                "question_id": row["question_id"],
+                "split": row["split"],
+                "label": "HALLUCINATED" if int(row["label"]) == 1 else "FAITHFUL",
+                "probe_score": pair_score,
+                "split_overlap": False,
+            }
+        )
     report["generation_calibration_gate"] = evaluate_generation_calibration_gate(
         gate_rows,
         threshold=PAIR_THRESHOLD,
         pair_probe_path=pair_probe_path,
+        score_source="pair_probe" if have_pair_scores else None,
     )
     if not report["target_met"]:
         report["note"] = (

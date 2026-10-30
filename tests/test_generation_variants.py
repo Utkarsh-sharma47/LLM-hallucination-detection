@@ -64,6 +64,9 @@ def test_length_can_explain_scores_when_labels_follow_answer_length() -> None:
     assert isinstance(tfidf, dict)
     assert report["detector_conclusion"]["successful_detector"] is False
     assert report["target_met"] is True
+    assert report["generation_calibration_gate"]["status"] == "rejected"
+    assert report["generation_calibration_gate"]["factual_risk_available"] is False
+    assert report["generation_calibration_gate"]["calibration_validated"] is False
 
 
 def test_variant_cli_refuses_historical_and_pair_probe_names(capsys) -> None:
