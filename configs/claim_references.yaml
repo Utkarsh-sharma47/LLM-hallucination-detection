@@ -1,0 +1,16 @@
+# Local claim catalog for the generation analysis report.
+# These entries are curated strings, not a live lookup. A sentence that matches
+# none of them stays UNVALIDATED. The probe is not a source for this file.
+
+schema: claim_references_v1
+items:
+  - id: in-capital
+    claim: "New Delhi is the capital of India."
+    accepted: ["New Delhi", "Delhi"]
+    false_claims: ["Mumbai", "Bombay", "Kolkata", "Calcutta", "Chennai", "Madras"]
+    source: "Curated local reference, claim_references_v1. Not retrieved at runtime."
+  - id: in-region
+    claim: "New Delhi is in the National Capital Territory of Delhi, not in Maharashtra."
+    accepted: ["National Capital Territory", "not in Maharashtra", "not Maharashtra"]
+    false_claims: ["in Maharashtra", "located in Maharashtra"]
+    source: "Curated local reference, claim_references_v1. Not retrieved at runtime."
