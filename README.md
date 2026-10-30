@@ -16,6 +16,8 @@ Version `0.1.0`. No GitHub release has been cut. The code license is unselected:
 | Hidden-state logistic probe | Pair-protocol probe in `artifacts/probes/final-hidden-state/` (gitignored). It discriminates supplied HaluEval answers. Calibration was rejected. The demo shows `EXPERIMENTAL PROBE SCORE` and `RISK NOT ASSESSED`. |
 | Text baselines | Length and gold-answer overlap explain most of the pair-task score. See [docs/RESEARCH.md](docs/RESEARCH.md). This is not a generation detector. |
 | TruthfulQA generation check | 40 generated answers, 5 labeled by a listed reference, 35 unvalidated. Not evidence for the pair AUROC. Early detection and activation intervention are not implemented. |
+| Generation-trained probe | Separate run under `artifacts/probes/generation-runs/`. It does not replace the live pair probe. The recorded `halueval-generation-001` run is **not** a validated detector (test AUROC 0.646 on 20 labeled rows, below TF-IDF 0.657). |
+| Generation calibration gate (#18) | Pre-registered: threshold 0.65, 20 rows per class, ECE ≤ 0.10 on validation. Until it passes, the demo keeps `EXPERIMENTAL PROBE SCORE` and `RISK NOT ASSESSED`. |
 
 Details, conflicts, and the task list: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/ROADMAP.md](docs/ROADMAP.md), [docs/RESEARCH.md](docs/RESEARCH.md).
 
@@ -83,6 +85,8 @@ The saved probe discriminates supplied HaluEval answer pairs. On 25 labeled Qwen
 python -m glassbox --offline train-probe --max-questions 200 --run-id halueval-pair-002
 python -m glassbox text-baselines --max-questions 200 --run-id halueval-text-baselines-001
 python -m glassbox --offline eval-truthfulqa --max-questions 40
+python -m glassbox --offline train-generation-probe --max-questions 240 --run-id a-new-generation-run
+python -m glassbox live-test --suite --run-id live-terminal-001
 python -m glassbox freeze-generation-split --max-questions 40 --seed 0
 python -m glassbox build-generation-dataset --split path/to/split.json --answers path/to/answers.json \
   --model-name Qwen/Qwen2.5-0.5B-Instruct \
