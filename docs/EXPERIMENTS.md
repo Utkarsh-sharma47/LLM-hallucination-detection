@@ -58,6 +58,35 @@ Probe: `artifacts/probes/generation-runs/halueval-generation-001/`. Report: `art
 
 False positives on the labeled generation test include "Löwenherz was created first..." (score 0.970, right answer `Löwenherz`). False negatives include "Sydney" where the right answer is Melbourne. One false negative is a weak label: the Elvin Hayes answer mentions the Houston Rockets because the question does. Unvalidated misses include "Vincenzo Bellini" where the right answer is Niccolò Paganini.
 
+## Live check `live-terminal-001`
+
+`NOT VALIDATED`. This is a fresh terminal run of the live pair probe on answers Qwen wrote. It is not a second training run. Command:
+
+```bash
+python -m glassbox live-test --suite --run-id live-terminal-001
+```
+
+Interactive use is `python -m glassbox live-test`. The model loads once from the cache. A blank line quits. `--trace-tokens` prints each piece and withholds the probe until the final generated token.
+
+| Field | Value |
+| --- | --- |
+| Model | `Qwen/Qwen2.5-0.5B-Instruct`, revision `7ae557604adf67be50417f59c2c2f167def9a775`, greedy, 32 new pieces |
+| Probe | `artifacts/probes/final-hidden-state/`, protocol `halueval_qa_pair_v1`, threshold 0.65, not refit |
+| Representation | last generated token, layer 24, dimension 896, inside the answer span |
+| Cases | 22 generations plus the supplied completion `Paris.` |
+| Labels | 14 faithful, 4 hallucinated, 0 ambiguous, 5 unvalidated. The faithful count includes `Paris.` |
+| Binary rows | 17 generated labeled rows. The smaller class has 4, so the interval was withheld and the result is inconclusive |
+| Point metrics | precision 0.231, recall 0.750, F1 0.353, AUROC 0.558, AUPRC 0.329, FPR 0.769. Confusion tn 3, fp 10, fn 1, tp 3 |
+| Length | AUROC 0.731. No threshold was fit. TF-IDF was not fit, because this suite has no training split |
+| Calibration | not validated. The report keeps `EXPERIMENTAL PROBE SCORE` and `RISK NOT ASSESSED` |
+| Early warning | not measured |
+
+The supplied answer `Paris.` scored 1.000 and was predicted hallucinated. The reference check is supported, and the factuality status stays `FAITHFUL`. The same pattern appears on Qwen's own sentence "The capital of France is Paris." Short answers such as `Paris` and `1969` scored near 0. The false answer `Sydney` scored 0.002 and was the false negative. `H₂O` stayed unvalidated because the subscript does not match the registered alias `H2O`.
+
+The generation probe was scored on the same vectors and was not used to choose the threshold or the label. Its scores are in `cases.json`. They do not turn this run into a validated detector.
+
+Report: `artifacts/experiments/live-terminal-001/report.json`. Cases: `cases.json`. Summary: `summary.md`.
+
 ## Preliminary findings
 
 Not large enough to support a detector claim. Intervals were withheld.

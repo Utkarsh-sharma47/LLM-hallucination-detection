@@ -40,6 +40,7 @@ On 24 October 2026, after `tests/test_generation_probe.py` was added, the same f
 | `test_truthfulqa_labels.py` | reference labels, paraphrase stays unvalidated, probe publish, lock message |
 | `test_research_baselines.py` | shared scaler, text baseline, tiny-sample interval refusal, ambiguous label, saturated experimental score still says risk is not assessed. No Qwen load. The saved-probe metadata check skips when the gitignored artifact is absent. |
 | `test_generation_probe.py` | generated-token alignment, question-group splits, evidence labels, TruthfulQA coverage, calibration refusal, protected run directories, and a synthetic generation probe that is not installed as the live probe. No Qwen load. |
+| `test_live_test.py` | suite categories, the `Paris.` regression stays faithful while a high probe score stays a separate prediction, missing references, intermediate-position refusal, inconclusive small samples, and a missing probe does not load Qwen. |
 
 `research_tests/` is the scaffold:
 
@@ -85,6 +86,6 @@ On 23 October 2026 the local machine also ran:
 - `python -m glassbox audit-generations --run-id truthfulqa-label-audit-001` (no model load)
 - a scripted `python -m glassbox --offline` session, recorded under `artifacts/experiments/interactive-spotcheck.log` when that log exists
 
-`train-probe` was not repeated in this pass. The live probe remains `halueval-pair-002`. `train-generation-probe` was run once, offline, as `halueval-generation-001`. That run is a research result in [EXPERIMENTS.md](EXPERIMENTS.md), not a unit test, and it did not replace the live probe.
+`train-probe` was not repeated in this pass. The live probe remains `halueval-pair-002`. `train-generation-probe` was run once, offline, as `halueval-generation-001`. That run is a research result in [EXPERIMENTS.md](EXPERIMENTS.md), not a unit test, and it did not replace the live probe. On 24 October 2026, `python -m glassbox live-test --suite --run-id live-terminal-001` generated 22 answers with the cached 0.5B model and wrote `artifacts/experiments/live-terminal-001/`. Aggregate performance was inconclusive. The `Paris.` completion was predicted hallucinated.
 
 A future probe run is accepted only when the saved directory loads in a new `python -m glassbox --offline` process and the report distinguishes an experimental score from `RISK NOT ASSESSED`.

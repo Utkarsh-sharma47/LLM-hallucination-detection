@@ -78,11 +78,15 @@ python -m glassbox --offline train-probe --max-questions 200 --run-id halueval-p
 python -m glassbox text-baselines --max-questions 200 --run-id halueval-text-baselines-001
 python -m glassbox --offline eval-truthfulqa --max-questions 40
 python -m glassbox --offline train-generation-probe --max-questions 720 --external-questions 40 --run-id halueval-generation-001
+python -m glassbox live-test
+python -m glassbox live-test --suite --run-id live-terminal-001
 ```
 
 `text-baselines` does not load Qwen. Training is not part of routine tests. The live probe is `halueval-pair-002` in `artifacts/probes/final-hidden-state/`, described in [docs/RESEARCH.md](docs/RESEARCH.md). `train-probe` replaces that directory. It is a paired-answer experiment. Platt scaling failed the held-out ECE check (0.114, limit 0.10), so the demo does not show a factual-risk percentage. `halueval-pair-001` is kept as `artifacts/probes/final-hidden-state.previous/`.
 
 `train-generation-probe` writes `artifacts/probes/generation-runs/<run-id>/` and refuses to replace the live probe. The same run id is refused once the directory exists. The recorded generation run is not a successful detector. See [docs/EXPERIMENTS.md](docs/EXPERIMENTS.md).
+
+`live-test` loads the cached 0.5B model once and scores the live pair probe. A blank line quits. `--suite` writes a new experiment directory and refuses an existing one. The recorded suite is `live-terminal-001`. It reproduced the `Paris.` false positive and did not validate hallucination detection.
 
 A tiny checkpoint for a pipeline check, not a scientific run:
 
