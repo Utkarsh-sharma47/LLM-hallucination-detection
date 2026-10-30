@@ -12,7 +12,11 @@ from collections.abc import Mapping, Sequence
 import numpy as np
 
 from glassbox.evaluation.generation_calibration import PAIR_THRESHOLD
-from glassbox.evaluation.metrics import BOOTSTRAP_MIN_PER_CLASS, compute_binary_metrics
+from glassbox.evaluation.metrics import (
+    BOOTSTRAP_MIN_PER_CLASS,
+    bootstrap_grouped_interval,
+    compute_binary_metrics,
+)
 from glassbox.probes.scoring import confusion_counts
 from glassbox.verification import CuratedFact
 
@@ -43,6 +47,7 @@ def summarize_length_effects(
     rows: Sequence[Mapping[str, object]],
     *,
     threshold: float = PAIR_THRESHOLD,
+    seed: int = 0,
 ) -> dict[str, object]:
     """Score distributions, format FPR, correlation, and length-matched metrics."""
     binary = [
@@ -76,7 +81,27 @@ def summarize_length_effects(
     }
     labels = [int(row["label"]) for row in binary]
     scores = [float(row["probe_score"]) for row in binary]
-    report["overall"] = _safe_metrics(labels, scores, threshold)
+    groups = [str(row.get("question_id") or index) for index, row in enumerate(binary)]
+    splits = {str(row.get("split")) for row in binary if row.get("split")}
+    report["splits_present"] = sorted(splits)
+    report["includes_training_rows"] = "train" in splits
+    report["overall"] = _safe_metrics(labels, scores, threshold, groups=groups, seed=seed)
+    if report["includes_training_rows"]:
+        overall = report["overall"]
+        if isinstance(overall, dict):
+            note = str(overall.get("note") or "")
+            overall["note"] = (
+                f"{note} These pooled rows include the training split and are not a held-out result."
+            ).strip()
+            overall["includes_training_rows"] = True
+        test_rows = [row for row in binary if row.get("split") == "test"]
+        report["held_out_test"] = _safe_metrics(
+            [int(row["label"]) for row in test_rows],
+            [float(row["probe_score"]) for row in test_rows],
+            threshold,
+            groups=[str(row.get("question_id") or index) for index, row in enumerate(test_rows)],
+            seed=seed,
+        )
     matched = length_matched_subset(binary, tolerance=LENGTH_MATCH_TOLERANCE)
     report["length_matched"] = {
         "tolerance_characters": LENGTH_MATCH_TOLERANCE,
@@ -89,6 +114,8 @@ def summarize_length_effects(
             [int(row["label"]) for row in matched],
             [float(row["probe_score"]) for row in matched],
             threshold,
+            groups=[str(row.get("question_id") or index) for index, row in enumerate(matched)],
+            seed=seed,
         ),
     }
     report["interpretation"] = interpret_length_shortcut(report)
@@ -262,7 +289,12 @@ def _length_by_class(rows: Sequence[Mapping[str, object]]) -> dict[str, object]:
 
 
 def _safe_metrics(
-    labels: Sequence[int], scores: Sequence[float], threshold: float
+    labels: Sequence[int],
+    scores: Sequence[float],
+    threshold: float,
+    *,
+    groups: Sequence[str] | None = None,
+    seed: int = 0,
 ) -> dict[str, object]:
     label_array = np.asarray(list(labels), dtype=int)
     score_array = np.asarray(list(scores), dtype=np.float64)
@@ -291,6 +323,16 @@ def _safe_metrics(
             "and this is not a detector result."
         )
     else:
+        payload["interval"] = bootstrap_grouped_interval(
+            label_array,
+            score_array,
+            list(groups)
+            if groups is not None
+            else [str(index) for index in range(label_array.size)],
+            metric="auroc",
+            threshold=threshold,
+            seed=seed,
+        )
         payload["note"] = "Both classes meet the interval minimum on this slice."
     return payload
 

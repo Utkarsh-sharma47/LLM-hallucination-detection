@@ -46,9 +46,14 @@ def length_eval_command(args: argparse.Namespace) -> int:
             if not isinstance(scored, list):
                 raise ValueError("Controlled scores must be a list")
             rows = [dict(item) for item in scored if isinstance(item, dict)]
-            report = summarize_length_effects(rows, threshold=PAIR_THRESHOLD)
+            report = summarize_length_effects(rows, threshold=float(args.threshold))
             source = "supplied_scores"
         elif args.controlled:
+            if abs(float(args.threshold) - PAIR_THRESHOLD) > 1e-12:
+                raise ValueError(
+                    f"Refusing threshold {args.threshold} for controlled pair-probe completions. "
+                    f"The frozen threshold is {PAIR_THRESHOLD}."
+                )
             rows, source = _score_controlled(args, pair_dir)
             report = summarize_length_effects(rows, threshold=PAIR_THRESHOLD)
         else:

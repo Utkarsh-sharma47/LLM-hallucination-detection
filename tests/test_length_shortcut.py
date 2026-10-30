@@ -61,6 +61,99 @@ def test_sentence_faithful_false_positives_are_reported_as_format_effects() -> N
     assert report["overall"]["inconclusive"] is True
 
 
+def test_interval_is_computed_when_both_classes_meet_the_minimum() -> None:
+    rows = []
+    for index in range(24):
+        rows.append(_row(f"f{index}", "short_faithful", "Paris", 0, 0.05))
+        rows.append(_row(f"h{index}", "short_hallucinated", "Lyon", 1, 0.95))
+    report = summarize_length_effects(rows, threshold=PAIR_THRESHOLD, seed=0)
+    assert report["overall"]["inconclusive"] is False
+    interval = report["overall"]["interval"]
+    assert isinstance(interval, dict)
+    assert interval["low"] is not None
+    assert interval["high"] is not None
+    assert report["includes_training_rows"] is False
+
+
+def test_pooled_rows_are_not_reported_as_held_out() -> None:
+    rows = [
+        {**_row("train-f", "short_faithful", "Paris", 0, 0.1), "split": "train"},
+        {**_row("train-h", "short_hallucinated", "Lyon", 1, 0.9), "split": "train"},
+        {**_row("test-f", "short_faithful", "Paris", 0, 0.2), "split": "test"},
+        {**_row("test-h", "short_hallucinated", "Lyon", 1, 0.8), "split": "test"},
+    ]
+    report = summarize_length_effects(rows, threshold=PAIR_THRESHOLD)
+    assert report["includes_training_rows"] is True
+    assert report["overall"]["includes_training_rows"] is True
+    assert "not a held-out result" in str(report["overall"]["note"])
+    assert report["held_out_test"]["n"] == 2
+    assert report["held_out_test"]["inconclusive"] is True
+
+
+def test_length_eval_cli_honors_supplied_score_threshold_and_locks_controlled(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    pair = tmp_path / "probes" / "final-hidden-state"
+    pair.mkdir(parents=True)
+    (pair / "metadata.json").write_text(
+        '{"threshold": 0.65, "calibration_validated": false}\n', encoding="utf-8"
+    )
+    scores = tmp_path / "scores.json"
+    scores.write_text(
+        json.dumps(
+            [
+                _row("q1", "short_faithful", "Paris", 0, 0.9),
+                _row("q1", "sentence_faithful", "The answer is Paris.", 0, 0.9),
+                _row("q1", "short_hallucinated", "Lyon", 1, 0.9),
+                _row("q1", "sentence_hallucinated", "The answer is Lyon.", 1, 0.9),
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("glassbox.evaluation.length_eval.repo_root", lambda: tmp_path)
+    monkeypatch.setattr(
+        "glassbox.evaluation.length_eval.generation_experiment_dir",
+        lambda run_id: tmp_path / "artifacts" / "experiments" / run_id,
+    )
+    code = main(
+        [
+            "eval-length-shortcut",
+            "--scores",
+            str(scores),
+            "--probe",
+            str(pair),
+            "--threshold",
+            "0.95",
+            "--run-id",
+            "length-threshold-001",
+        ]
+    )
+    assert code == 0
+    report = json.loads(
+        (
+            tmp_path / "artifacts" / "experiments" / "length-threshold-001" / "report.json"
+        ).read_text()
+    )
+    assert report["threshold"] == 0.95
+    assert report["formats"]["sentence_faithful"]["false_positive_rate"] == 0.0
+    refused = main(
+        [
+            "eval-length-shortcut",
+            "--controlled",
+            "--dry-run",
+            "--threshold",
+            "0.25",
+            "--probe",
+            str(pair),
+            "--run-id",
+            "length-controlled-refused",
+        ]
+    )
+    assert refused == 1
+    assert "frozen threshold" in capsys.readouterr().err
+    assert not (tmp_path / "artifacts" / "experiments" / "length-controlled-refused").exists()
+
+
 def test_length_eval_cli_does_not_rewrite_pair_probe_metadata(tmp_path: Path, monkeypatch) -> None:
     pair = tmp_path / "probes" / "final-hidden-state"
     pair.mkdir(parents=True)
