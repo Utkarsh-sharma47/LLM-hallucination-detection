@@ -177,6 +177,60 @@ Eight faithful answers scored at or above 0.65. Six of them scored above 0.99, i
 
 Files, gitignored: `artifacts/experiments/truthfulqa-probe-transfer-001/`. `record.json` is the fail-closed per-answer record. `metrics.json` holds the counts, the baselines, the interval note, and one score note on every row. An earlier write of the same scores, before the score-note field was stored, is `truthfulqa-probe-transfer-001-before-score-note`. The rerun matched every label and every probe score. Cite `truthfulqa-probe-transfer-001`.
 
+## Generation-specific probe `halueval-generation-001`
+
+This is a different experiment from the pair probe. Qwen generated new answers. Labels came from a passage-grounded evidence rule (`halueval_generation_evidence_v1`), not from copying HaluEval pair fields and not from the probe score. Ambiguous and unvalidated answers stayed out of binary training. Knowledge-group splits keep questions that share a passage in the same split. The live pair probe in `artifacts/probes/final-hidden-state/` was not rewritten. The generation artifact is `artifacts/probes/generation-runs/halueval-generation-001/` (gitignored).
+
+| Field | Value |
+| --- | --- |
+| Model | `Qwen/Qwen2.5-0.5B-Instruct`, revision `7ae557604adf67be50417f59c2c2f167def9a775`, greedy, bfloat16 |
+| Representation | last generated token, layer 24, dimension 896 |
+| Development answers | 720 HaluEval questions |
+| Labels | 590 unvalidated, 12 ambiguous; binary training used the remaining labeled rows |
+| Held-out labeled test | 20 rows (11 / 9). Interval withheld because the smaller class is below 20 |
+| Hidden-state test AUROC | 0.646 |
+| TF-IDF test AUROC | 0.657 |
+| Length test AUROC | 0.626 |
+| Right-answer dissimilarity | 0.949 |
+| False-span similarity | 1.000 |
+| Confusion | tn 6, fp 3, fn 4, tp 7 |
+| Threshold | 0.25, fit on the generation validation split. The live pair threshold stays 0.65 |
+| Pair-probe transfer on the same test | AUROC 0.333 at 0.65; tn 0, fp 9, fn 1, tp 10 |
+| Calibration | rejected. Validation had 14 faithful and 7 hallucinated rows. Issue #18 needs 20 of each on validation and ECE ≤ 0.10 at threshold 0.65 |
+| `successful_detector` | false |
+
+The probe does not beat the TF-IDF baseline. Reference-overlap shortcuts recover the evidence rule. The labeled test is too small for an interval. This run is **not** a validated hallucination detector for Qwen-generated answers. The score name stays `EXPERIMENTAL PROBE SCORE`. The risk line stays `RISK NOT ASSESSED`. Expanding labels by treating unvalidated wording as hallucinated would be circular and is not done.
+
+A mean over generated pieces scored 0.622 AUROC on 21 validation rows and was not allowed to replace the saved last-token vector. Other layers were not swept.
+
+```bash
+python -m glassbox --offline train-generation-probe \
+  --max-questions 720 --external-questions 40 \
+  --run-id a-new-generation-run
+```
+
+The command refuses an existing run directory and refuses `final-hidden-state`. Do not rerun `halueval-generation-001` against the already-seen test split.
+
+## Length and format diagnostic
+
+The live pair probe was scored on 52 **supplied** completions: 13 curated questions, each with a short faithful answer, a sentence-form faithful answer, a short false answer, and a sentence-form false answer. Hidden states were read with `completion_hidden_states`. The threshold stayed 0.65. Pair-probe metadata was not rewritten.
+
+| Slice | n | Mean score | FPR at 0.65 |
+| --- | --- | --- | --- |
+| Short faithful (`Paris`) | 13 | 0.029 | 0.00 |
+| Sentence faithful (`The answer is Paris.`) | 13 | 0.995 | 1.00 |
+| Short hallucinated | 13 | 0.029 | — |
+| Sentence hallucinated | 13 | 0.982 | — |
+| All 52, both classes 26 | 52 | — | 0.50 |
+
+Overall AUROC 0.494. Length–score correlation among faithful rows r=0.938. After matching completions within 15 characters, AUROC 0.438. The pair probe is ranking sentence form against short form, not factual correctness. That is the same pattern as the interactive `Paris.` false positive. The stored report does not contain a bootstrap interval. Both classes have 26 rows, and later runs record the interval instead of leaving it null. The stored file was not rewritten, so those AUROC figures stay the historical result.
+
+The generation-001 evidence-labeled rows are a different picture. Faithful and hallucinated generations have almost the same mean length (72.7 vs 71.8 characters). On the 20-row held-out test, last-piece AUROC 0.646 still sits below TF-IDF 0.657 and length 0.626. Length matching does not rescue a detector claim there. Mean-pooled hidden states were not stored on those rows, so that variant was skipped rather than invented.
+
+A 2400-question expansion plan keeps the 001 question ids in their original knowledge-group splits and would add 336 new validation and 336 new test questions. Known validation labels remain 14 faithful and 7 hallucinated. The 20-per-class target is not met until those new answers are generated or a human review cites passage evidence. Unvalidated rows were not converted into binary labels. The review command writes an append-only JSONL history beside the frozen `review_queue.json`.
+
+Issue #18 stays rejected: validation still has 7 hallucinated rows. The gate reads pair-probe scores only. A generation-probe score, including a score that looks calibrated, does not open it, and pair-protocol Platt scaling does not mark the generation probe calibrated.
+
 ```bash
 python -m glassbox --offline eval-saved-probe --max-questions 200 --seed 0 \
   --run-id truthfulqa-probe-transfer-001 \
@@ -213,6 +267,12 @@ Two load attempts earlier in the same session were refused because available RAM
 python -m glassbox --offline train-probe --max-questions 200 --run-id halueval-pair-002
 python -m glassbox --offline eval-truthfulqa --max-questions 40 --run-id truthfulqa-generation-001
 python -m glassbox --offline eval-saved-probe
+python -m glassbox --offline train-generation-probe --max-questions 240 --run-id a-new-generation-run
+python -m glassbox live-test --suite --run-id live-terminal-001
+python -m glassbox review-generations --show 5
+python -m glassbox eval-length-shortcut --controlled --run-id length-shortcut-pair-controlled-001
+python -m glassbox compare-generation-variants --predictions artifacts/experiments/halueval-generation-001/predictions.json --run-id generation-variants-001 --threshold 0.25
+python -m glassbox plan-generation-expansion --max-questions 2400 --run-id halueval-generation-expansion-001
 python -m glassbox freeze-generation-split --max-questions 40 --seed 0
 python -m glassbox build-generation-dataset --split path/to/split.json --answers path/to/answers.json \
   --model-name Qwen/Qwen2.5-0.5B-Instruct \

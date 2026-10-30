@@ -15,6 +15,7 @@ import numpy as np
 
 from glassbox.activations.extract import (
     feature_index,
+    mean_answer_vector,
     module_device,
     resolve_layer,
     vectors_at_position,
@@ -199,6 +200,7 @@ class GenerationResult:
     note: str = ""
     decoding: str = "greedy"
     temperature: float = 0.0
+    answer_mean_feature: np.ndarray | None = None
 
 
 class HuggingFaceBackend:
@@ -336,12 +338,14 @@ def run_generation(
     else:
         sequences = model_inputs["input_ids"]
     answer = tokenizer.decode(new_ids, skip_special_tokens=True).strip() if new_ids else ""
-    feature, layer_vectors, hidden_count, feature_layer, hidden_ok, note = _read_hidden_states(
-        model,
-        sequences,
-        prompt_tokens=prompt_tokens,
-        generated_count=len(new_ids),
-        settings=settings,
+    feature, layer_vectors, hidden_count, feature_layer, hidden_ok, note, answer_mean = (
+        _read_hidden_states(
+            model,
+            sequences,
+            prompt_tokens=prompt_tokens,
+            generated_count=len(new_ids),
+            settings=settings,
+        )
     )
     return GenerationResult(
         question=question.strip(),
@@ -367,6 +371,7 @@ def run_generation(
         note=note,
         decoding="greedy" if settings.temperature <= 0 else "temperature",
         temperature=float(settings.temperature),
+        answer_mean_feature=answer_mean,
     )
 
 
@@ -400,7 +405,7 @@ def completion_hidden_states(
         raise ValueError("prompt plus completion is longer than 256 tokens")
     continuation = torch.tensor([answer_ids], device=device, dtype=input_ids.dtype)
     sequences = torch.cat([input_ids, continuation], dim=1)
-    _feature, vectors, hidden_count, feature_layer, ok, note = _read_hidden_states(
+    _feature, vectors, hidden_count, feature_layer, ok, note, _answer_mean = _read_hidden_states(
         loaded.model,
         sequences,
         prompt_tokens=int(input_ids.shape[1]),
@@ -598,27 +603,37 @@ def _read_hidden_states(
     prompt_tokens: int,
     generated_count: int,
     settings: GenerationSettings,
-) -> tuple[np.ndarray | None, dict[int, np.ndarray], int | None, int | None, bool, str]:
+) -> tuple[
+    np.ndarray | None, dict[int, np.ndarray], int | None, int | None, bool, str, np.ndarray | None
+]:
     torch = _import_torch()
     try:
         position = feature_index(prompt_tokens, generated_count, settings.position)
     except ValueError as exc:
-        return None, {}, None, None, False, str(exc)
+        return None, {}, None, None, False, str(exc), None
     try:
         with torch.inference_mode():
             forward = model(sequences, output_hidden_states=True, use_cache=False)
     except (MemoryError, RuntimeError) as exc:
         if _is_memory_error(exc):
-            return None, {}, None, None, False, "Hidden-state forward pass ran out of memory."
-        return None, {}, None, None, False, f"Hidden-state forward pass failed: {exc}"
+            return None, {}, None, None, False, "Hidden-state forward pass ran out of memory.", None
+        return None, {}, None, None, False, f"Hidden-state forward pass failed: {exc}", None
     hidden_states = forward.hidden_states
     if not hidden_states:
-        return None, {}, None, None, False, "The model returned no hidden states."
+        return None, {}, None, None, False, "The model returned no hidden states.", None
     feature_layer = resolve_layer(len(hidden_states), settings.layer_index)
     layers = None if settings.capture_all_layers else (feature_layer,)
     vectors = vectors_at_position(hidden_states, position, layers=layers)
     feature = vectors.get(feature_layer)
-    return feature, vectors, len(hidden_states), feature_layer, feature is not None, ""
+    answer_mean = None
+    if generated_count >= 1:
+        try:
+            answer_mean = mean_answer_vector(
+                hidden_states, prompt_tokens, generated_count, feature_layer
+            )
+        except ValueError:
+            answer_mean = None
+    return feature, vectors, len(hidden_states), feature_layer, feature is not None, "", answer_mean
 
 
 def _from_pretrained(transformers: Any, spec: ModelSpec, dtype: Any) -> Any:

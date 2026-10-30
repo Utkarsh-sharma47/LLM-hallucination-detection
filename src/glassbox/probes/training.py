@@ -97,6 +97,9 @@ def train_from_examples(
     seed: int = 0,
     min_per_class: int = MIN_TRAIN_PER_CLASS,
     dataset_record: dict[str, object] | None = None,
+    label_protocol: str | None = None,
+    metrics_note: str | None = None,
+    overlap_note: str | None = None,
 ) -> TrainingOutcome:
     """Fit the registered layer and score validation and test separately."""
     if not examples:
@@ -160,13 +163,18 @@ def train_from_examples(
                 f"{PROBE_NOT_TRAINED}: validation does not contain both classes, "
                 "so the threshold was not chosen and the test split was not scored."
             ),
+            label_protocol=label_protocol,
+            metrics_note=metrics_note,
+            seed=seed,
         )
     threshold = select_threshold(validation_labels, validation_scores)
     report["threshold"] = threshold
     report["threshold_rule"] = (
         "Maximum validation F1 on the grid 0.05..0.95. Ties keep the lower false-positive rate."
     )
-    report["baselines"] = _baselines(train, validation, test, resolved_layer, seed)
+    report["baselines"] = _baselines(
+        train, validation, test, resolved_layer, seed, overlap_note=overlap_note
+    )
     platt = fit_platt(validation_scores, validation_labels, seed=seed)
     calibration_validated = False
     test_metrics = None
@@ -244,6 +252,8 @@ def train_from_examples(
         dataset_record=dataset_record or {},
         calibration_validated=calibration_validated,
         examples=examples,
+        label_protocol=label_protocol,
+        metrics_note=metrics_note,
     )
     directory = save_probe(output_dir, probe, metadata=metadata, mean=mean, scale=scale)
     if test_metrics is None:
@@ -536,6 +546,7 @@ def _baselines(
     test: list[FeatureExample],
     layer: int,
     seed: int,
+    overlap_note: str | None = None,
 ) -> dict[str, object]:
     result: dict[str, object] = {
         "majority": majority_baseline(_labels(train), _labels(test))
@@ -557,7 +568,7 @@ def _baselines(
     )
     try:
         result["lexical_overlap"] = compute_binary_metrics(_labels(test), overlap, threshold=0.5)
-        result["lexical_overlap_note"] = (
+        result["lexical_overlap_note"] = overlap_note or (
             "Overlap uses the gold answer string. Under the pair protocol that string is the faithful "
             "answer, so this baseline can recover the label without hidden states."
         )
@@ -639,16 +650,21 @@ def _save_without_test(
     dataset_record: dict[str, object] | None,
     *,
     reason: str,
+    label_protocol: str | None = None,
+    metrics_note: str | None = None,
+    seed: int = 0,
 ) -> TrainingOutcome:
     metadata = _metadata(
         examples[0],
         layer_index=layer,
         threshold=None,
-        seed=0,
+        seed=seed,
         report=report,
         dataset_record=dataset_record or {},
         calibration_validated=False,
         examples=examples,
+        label_protocol=label_protocol,
+        metrics_note=metrics_note,
     )
     directory = save_probe(output_dir, probe, metadata=metadata, mean=mean, scale=scale)
     return TrainingOutcome(
@@ -669,6 +685,8 @@ def _metadata(
     dataset_record: dict[str, object],
     calibration_validated: bool,
     examples: list[FeatureExample],
+    label_protocol: str | None = None,
+    metrics_note: str | None = None,
 ) -> dict[str, object]:
     platt = report.get("platt") if calibration_validated else None
     return {
@@ -680,7 +698,7 @@ def _metadata(
         "hidden_state_count": first.hidden_state_count,
         "position": first.position,
         "prompt_mode": first.prompt_mode,
-        "label_protocol": LABEL_SOURCE,
+        "label_protocol": label_protocol or LABEL_SOURCE,
         "positive_class": "hallucinated",
         "calibration": "platt" if calibration_validated else "none",
         "calibration_validated": calibration_validated,
@@ -699,7 +717,8 @@ def _metadata(
         "validation_class_counts": report.get("validation_class_counts"),
         "test_class_counts": report.get("test_class_counts"),
         "metrics": report.get("test_metrics"),
-        "metrics_note": (
+        "metrics_note": metrics_note
+        or (
             "Scores are probabilities of the HaluEval hallucinated-answer class for a supplied answer. "
             "They are not labels of a new model generation. Early detection and intervention were not run."
         ),

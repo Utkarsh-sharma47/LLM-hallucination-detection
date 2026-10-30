@@ -52,9 +52,9 @@ Owners are unassigned unless noted. The GitHub repository owner is the default r
 
 ### 7. Generation-protocol labels
 
-- **Status:** `truthfulqa-probe-transfer-001` scored 200 cached Qwen answers with the saved pair probe. Reference labels were 9 faithful, 16 hallucinated, 0 ambiguous, and 175 unvalidated. Binary metrics use the 25 labeled rows. The smaller class has 9 rows, so the confidence interval is null. Probe AUROC on those rows was 0.438 at the frozen threshold 0.65, below the reference-phrase baselines. `calibration_validated` stays false. The pair-protocol AUROC is a separate experiment. Details are in [RESEARCH.md](RESEARCH.md).
-- **Depends on:** task 1, so the pair protocol is not confused with this one. A new generation pass still needs the cached 0.5B weights and is not part of CI.
-- **Acceptance:** a written rubric, labels that are not "the strings differ," a split frozen before generation, and a report that does not reuse pair-protocol metrics as if they were the same experiment. The rubric and the dataset writer meet that contract. The pilot does not meet the sample-size part of that bar.
+- **Status:** a generation-evidence trainer exists (`train-generation-probe`) and does not replace the live pair probe. `halueval-generation-001` trained on Qwen answers with passage-grounded labels. Held-out AUROC 0.646 on 20 labeled rows, below TF-IDF 0.657. Calibration rejected. A controlled pair-probe check (`length-shortcut-pair-controlled-001`) ranks chance (AUROC 0.494) and assigns hallucination to every sentence-form faithful completion. The review queue and a 2400-question expansion plan exist; no human labels were invented, and the 20-per-class val/test target is not met. Issue #18 remains rejected. Details are in [RESEARCH.md](RESEARCH.md) and [EXPERIMENTS.md](EXPERIMENTS.md).
+- **Depends on:** task 1, so the pair protocol is not confused with this one. A reviewed label set for the unvalidated queue, and enough labeled rows for 20 per class on validation and test. Generating the 336 new validation questions from the expansion plan is the compute step; it has not been run.
+- **Acceptance:** a written rubric, labels that are not "the strings differ," a split frozen before generation, and a report that does not reuse pair-protocol metrics as if they were the same experiment. The rubric and trainer meet that contract. The recorded run does not meet the sample-size, baseline, or calibration parts of that bar and is not a successful detector.
 - **Owner:** unassigned.
 
 ### 8. Early detection

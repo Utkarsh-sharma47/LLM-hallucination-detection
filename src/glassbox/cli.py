@@ -166,6 +166,88 @@ def main(argv: list[str] | None = None) -> int:
     transfer.add_argument("--halueval", type=Path, default=None)
     transfer.add_argument("--probe", type=Path, default=None)
     transfer.add_argument("--artifacts-root", type=Path, default=None)
+    generate = commands.add_parser(
+        "train-generation-probe",
+        help="Train on Qwen's own answers. Does not replace the saved pair probe.",
+    )
+    generate.add_argument("--max-questions", type=int, default=240)
+    generate.add_argument("--external-questions", type=int, default=40)
+    generate.add_argument("--snapshot", type=Path, default=None)
+    generate.add_argument("--external-snapshot", type=Path, default=None)
+    generate.add_argument("--reviews", type=Path, default=None)
+    generate.add_argument("--seed", type=int, default=0)
+    generate.add_argument("--run-id", default="halueval-generation-001")
+    generate.add_argument("--output", type=Path, default=None)
+    generate.add_argument("--pair-probe", type=Path, default=None)
+    generate.add_argument(
+        "--allow-model-download",
+        action="store_true",
+        help="Arm a model download. Omit this to read the local cache only.",
+    )
+    live = commands.add_parser(
+        "live-test",
+        help=(
+            "Score Qwen's answers with the saved probe. Cache only. "
+            "Does not train or replace a probe."
+        ),
+    )
+    live.add_argument("--suite", action="store_true", help="Run the fixed question suite and exit.")
+    live.add_argument("--run-id", default="live-terminal-001")
+    live.add_argument("--trace-tokens", action="store_true")
+    live.add_argument("--dataset-questions", type=int, default=2)
+    live.add_argument(
+        "--probe",
+        type=Path,
+        default=None,
+        dest="live_probe",
+        help="Probe directory. Omit to use the live pair probe when it exists.",
+    )
+    live.add_argument(
+        "--allow-model-download",
+        action="store_true",
+        help="Arm a model download. Omit this to read the local cache only.",
+    )
+    review = commands.add_parser(
+        "review-generations",
+        help="Display the generation review queue and record human reviews. Does not load Qwen.",
+    )
+    review.add_argument("--queue", type=Path, default=None)
+    review.add_argument("--history", type=Path, default=None)
+    review.add_argument("--show", type=int, default=0)
+    review.add_argument("--append", type=Path, default=None)
+    review.add_argument("--export-snapshot", type=Path, default=None)
+    review.add_argument("--run-id", default=None)
+    length = commands.add_parser(
+        "eval-length-shortcut",
+        help="Diagnose length and format effects. Does not rewrite the pair probe.",
+    )
+    length.add_argument("--predictions", type=Path, default=None)
+    length.add_argument("--controlled", action="store_true")
+    length.add_argument("--scores", type=Path, default=None)
+    length.add_argument("--dry-run", action="store_true")
+    length.add_argument("--probe", type=Path, default=None)
+    length.add_argument("--references", type=Path, default=None)
+    length.add_argument("--threshold", type=float, default=0.65)
+    length.add_argument("--run-id", default="length-shortcut-001")
+    expand = commands.add_parser(
+        "plan-generation-expansion",
+        help="Plan a larger generation split without rewriting generation-001.",
+    )
+    expand.add_argument("--max-questions", type=int, default=2400)
+    expand.add_argument("--seed", type=int, default=0)
+    expand.add_argument("--snapshot", type=Path, default=None)
+    expand.add_argument("--predictions", type=Path, default=None)
+    expand.add_argument("--run-id", default="halueval-generation-expansion-001")
+    variants = commands.add_parser(
+        "compare-generation-variants",
+        help="Compare last-token, length, and TF-IDF on a frozen generation split.",
+    )
+    variants.add_argument("--predictions", type=Path, required=True)
+    variants.add_argument("--features", type=Path, default=None)
+    variants.add_argument("--seed", type=int, default=0)
+    variants.add_argument("--threshold", type=float, default=None)
+    variants.add_argument("--pair-probe", type=Path, default=None)
+    variants.add_argument("--run-id", default="generation-variants-001")
     args = parser.parse_args(argv)
     if args.command == "train-probe":
         from glassbox.probes.training import train_command
@@ -199,6 +281,30 @@ def main(argv: list[str] | None = None) -> int:
         from glassbox.evaluation.probe_transfer import transfer_command
 
         return transfer_command(args)
+    if args.command == "train-generation-probe":
+        from glassbox.probes.generation_train import train_generation_command
+
+        return train_generation_command(args)
+    if args.command == "live-test":
+        from glassbox.probes.live_test import live_test_command
+
+        return live_test_command(args)
+    if args.command == "review-generations":
+        from glassbox.data.review_cli import review_command
+
+        return review_command(args)
+    if args.command == "eval-length-shortcut":
+        from glassbox.evaluation.length_eval import length_eval_command
+
+        return length_eval_command(args)
+    if args.command == "plan-generation-expansion":
+        from glassbox.data.generation_expand import expand_command
+
+        return expand_command(args)
+    if args.command == "compare-generation-variants":
+        from glassbox.probes.generation_variants import variants_command
+
+        return variants_command(args)
     console = make_console()
     if args.samples:
         render_samples(console)
