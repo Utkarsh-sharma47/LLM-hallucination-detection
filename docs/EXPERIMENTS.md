@@ -48,6 +48,9 @@ python -m glassbox text-baselines --max-questions 200 --run-id halueval-text-bas
 | `length-shortcut-generation-001` | Same generation-001 binary labels (118 rows, mixed splits). Faithful and hallucinated answers have almost the same mean length (72.7 vs 71.8 characters). Score–length r=0.032. This does not explain the held-out generation failure. |
 | `generation-variants-001` | Frozen last-piece vs length vs TF-IDF on the generation-001 splits. Test AUROC last-piece 0.646, TF-IDF 0.657, length 0.626. Validation 14/7 labeled rows. Issue #18 gate rejected. Mean-pool skipped: those vectors were not stored. No live probe was written. |
 | `halueval-generation-expansion-001` | Plan only. Seed 0, 2400-question prefix. Known labels stay in their original splits. New questions: 1008 train, 336 validation, 336 test. Known validation is still 14 faithful / 7 hallucinated. The 20-per-class target is not met until those new questions are generated or reviewed. No human labels were invented. |
+| Generation Dataset v2 | Assembler exists (`build-generation-v2`). Cached 001 answers are not replaced. Missing questions are unlabeled. Mean-pool hidden states were not stored on 001, so that comparison is unavailable. The 20-per-class target is not met. |
+| Issue #13 layer comparison | Representations were named before scoring. Extra layers and mean-pool are unavailable on 001. No live probe was written. `early_warning_lead` stays null. |
+| Issue #7 early warning | Event definition is in ROADMAP task 8. No lead-time number is published. |
 | TruthfulQA external slice of `halueval-generation-001` | 3 faithful, 3 hallucinated, 34 unvalidated, 1 coverage upgrade. AUROC 0.444 on 6 rows. Threshold was frozen at 0.25 and was not fit here. |
 
 Generation command. It refuses an existing run directory and refuses `final-hidden-state`:

@@ -72,6 +72,8 @@ The positive class is the HaluEval `hallucinated_answer` string. It is not a new
 
 `python -m glassbox --offline eval-saved-probe` is the later transfer check. It generates with the cached demo model, scores the saved pair probe, and writes `record.json` through that fail-closed writer. Metrics stay in a sibling `metrics.json`. The command does not retrain the probe and does not download weights.
 
+`review-generations`, `build-generation-v2`, `compare-generation-layers`, `eval-early-warning`, and `view-session` do not load Qwen. They refuse `halueval-generation-001` and `final-hidden-state` as output ids. `view-session` renders an exported session without presenting an uncalibrated score as a factual-risk probability.
+
 ## Shared behavior, and where it is duplicated
 
 Use these modules instead of copying the rule:
