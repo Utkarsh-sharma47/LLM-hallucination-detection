@@ -231,6 +231,25 @@ A 2400-question expansion plan keeps the 001 question ids in their original know
 
 Issue #18 stays rejected: validation still has 7 hallucinated rows.
 
+`build-generation-v2` joins those cached 001 rows onto the 2400-question plan. It does not generate the missing 1680 answers, does not invent human labels, and does not rewrite 001. Mean-pool comparison on the identical split still requires stored mean vectors, which 001 did not keep.
+
+## Pre-registered generation representations (issue #13)
+
+These names were written before any new generation score was computed. Pair-protocol AUROC is not used to rank them. The saved probe stays at layer_index -1, `last_generated_token`. `early_warning_lead` stays null (issue #7).
+
+| Name | Layer index | Position |
+| --- | --- | --- |
+| `saved_probe_representation` | -1 (resolved 24 on the 0.5B model) | last generated piece |
+| `mean_pool_final_layer` | -1 | mean of generated pieces |
+| `middle_layer_last_piece` | 12 | last generated piece |
+| `embedding_last_piece` | 0 | last generated piece |
+
+On generation-001, only the saved last-piece vector exists. Mean-pool and the extra layers are unavailable, not invented. A higher score, if one appears later, is a comparison result. It does not name a truth direction.
+
+## Early-warning event (issue #7)
+
+The event definition is in [ROADMAP.md](ROADMAP.md) task 8. No run stores per-prefix evidence labels, so no lead-time number is published. Scoring two generated pieces from stored vectors does not load Qwen and does not change the pair threshold.
+
 ```bash
 python -m glassbox --offline eval-saved-probe --max-questions 200 --seed 0 \
   --run-id truthfulqa-probe-transfer-001 \
@@ -273,6 +292,10 @@ python -m glassbox review-generations --show 5
 python -m glassbox eval-length-shortcut --controlled --run-id length-shortcut-pair-controlled-001
 python -m glassbox compare-generation-variants --predictions artifacts/experiments/halueval-generation-001/predictions.json --run-id generation-variants-001 --threshold 0.25
 python -m glassbox plan-generation-expansion --max-questions 2400 --run-id halueval-generation-expansion-001
+python -m glassbox build-generation-v2 --max-questions 2400 --run-id halueval-generation-002
+python -m glassbox compare-generation-layers --predictions artifacts/experiments/halueval-generation-001/predictions.json --run-id generation-layers-001
+python -m glassbox eval-early-warning --scores path/to/piece-vectors.json --run-id early-warning-001
+python -m glassbox view-session --input artifacts/sessions/session-1/session.json
 python -m glassbox freeze-generation-split --max-questions 40 --seed 0
 python -m glassbox build-generation-dataset --split path/to/split.json --answers path/to/answers.json \
   --model-name Qwen/Qwen2.5-0.5B-Instruct \

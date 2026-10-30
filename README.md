@@ -19,6 +19,8 @@ Version `0.1.0`. No GitHub release has been cut. The code license is unselected:
 | Generation-trained probe | Separate run under `artifacts/probes/generation-runs/`. It does not replace the live pair probe. The recorded `halueval-generation-001` run is **not** a validated detector (test AUROC 0.646 on 20 labeled rows, below TF-IDF 0.657). |
 | Generation calibration gate (#18) | Pre-registered: threshold 0.65, 20 rows per class, ECE ≤ 0.10 on validation. Until it passes, the demo keeps `EXPERIMENTAL PROBE SCORE` and `RISK NOT ASSESSED`. |
 | Pair-probe length diagnostic | On 52 controlled completions (13 questions × short/sentence × faithful/false), AUROC 0.494. Sentence-form faithful FPR 1.0; short faithful FPR 0.0. The live pair probe tracks answer format, not factual correctness. |
+| Generation Dataset v2 | Assembler keeps 001 split membership. The 20-per-class target is not met. No human labels were invented. |
+| Session HTML view | `view-session` renders an exported `session.json` without presenting uncalibrated scores as factual-risk probabilities. |
 
 Details, conflicts, and the task list: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/ROADMAP.md](docs/ROADMAP.md), [docs/RESEARCH.md](docs/RESEARCH.md).
 
@@ -95,6 +97,10 @@ python -m glassbox --offline eval-length-shortcut --controlled --run-id length-s
 python -m glassbox compare-generation-variants --predictions artifacts/experiments/halueval-generation-001/predictions.json \
   --run-id generation-variants-001 --threshold 0.25
 python -m glassbox plan-generation-expansion --max-questions 2400 --run-id halueval-generation-expansion-001
+python -m glassbox build-generation-v2 --max-questions 2400 --run-id halueval-generation-002
+python -m glassbox compare-generation-layers --predictions artifacts/experiments/halueval-generation-001/predictions.json --run-id generation-layers-001
+python -m glassbox eval-early-warning --scores path/to/piece-vectors.json --run-id early-warning-001
+python -m glassbox view-session --input artifacts/sessions/session-1/session.json
 python -m glassbox freeze-generation-split --max-questions 40 --seed 0
 python -m glassbox build-generation-dataset --split path/to/split.json --answers path/to/answers.json \
   --model-name Qwen/Qwen2.5-0.5B-Instruct \

@@ -52,6 +52,10 @@ glassbox smoke test: ok (version=0.1.0, phase=scaffold, model=Qwen/Qwen2.5-3B-In
 | `test_length_shortcut.py` | controlled short vs sentence variants, sentence-faithful false positives reported as a format effect, threshold stays 0.65, and pair-probe metadata is not rewritten. No Qwen load in the unit tests. |
 | `test_generation_expand.py` | larger prefix splits keep known question ids, split leakage is refused, unvalidated rows are not counted as binary, and `halueval-generation-001` cannot be reused as the run id. No Qwen load. |
 | `test_generation_variants.py` | frozen last-piece vs length vs TF-IDF on one split, below-20 reports inconclusive, calibration gate rejected, historical generation run and `final-hidden-state` refused. No Qwen load. |
+| `test_early_warning.py` | issue #7: two generated pieces scored without Qwen, `early_warning_lead` stays null when the event is unset or no flag is timely, historical run ids refused. |
+| `test_layer_compare.py` | issue #13: representations named before scoring, missing layers stay unavailable, pair-probe metadata not rewritten, `early_warning_lead` stays null. No Qwen load. |
+| `test_generation_v2.py` | v2 assembly keeps cached split membership, refuses to replace 001 answers, does not invent labels, and refuses protected run ids. No Qwen load. |
+| `test_session_view.py` | session HTML keeps `EXPERIMENTAL PROBE SCORE` and `RISK NOT ASSESSED` and does not convert a raw score into a factual-risk percentage. No Qwen load. |
 | `test_research_baselines.py` | shared scaler, text baseline, tiny-sample interval refusal, ambiguous label, saturated experimental score still says risk is not assessed. No Qwen load. The saved-probe metadata check skips when the gitignored artifact is absent. |
 
 `research_tests/` is the scaffold:

@@ -53,15 +53,16 @@ Owners are unassigned unless noted. The GitHub repository owner is the default r
 ### 7. Generation-protocol labels
 
 - **Status:** a generation-evidence trainer exists (`train-generation-probe`) and does not replace the live pair probe. `halueval-generation-001` trained on Qwen answers with passage-grounded labels. Held-out AUROC 0.646 on 20 labeled rows, below TF-IDF 0.657. Calibration rejected. A controlled pair-probe check (`length-shortcut-pair-controlled-001`) ranks chance (AUROC 0.494) and assigns hallucination to every sentence-form faithful completion. The review queue and a 2400-question expansion plan exist; no human labels were invented, and the 20-per-class val/test target is not met. Issue #18 remains rejected. Details are in [RESEARCH.md](RESEARCH.md) and [EXPERIMENTS.md](EXPERIMENTS.md).
-- **Depends on:** task 1, so the pair protocol is not confused with this one. A reviewed label set for the unvalidated queue, and enough labeled rows for 20 per class on validation and test. Generating the 336 new validation questions from the expansion plan is the compute step; it has not been run.
+- **Depends on:** task 1, so the pair protocol is not confused with this one. A reviewed label set for the unvalidated queue, and enough labeled rows for 20 per class on validation and test. `build-generation-v2` assembles cached 001 rows onto a 2400-question plan without rewriting 001. Generating the 336 new validation questions is the remaining compute step; it has not been run.
 - **Acceptance:** a written rubric, labels that are not "the strings differ," a split frozen before generation, and a report that does not reuse pair-protocol metrics as if they were the same experiment. The rubric and trainer meet that contract. The recorded run does not meet the sample-size, baseline, or calibration parts of that bar and is not a successful detector.
 - **Owner:** unassigned.
 
 ### 8. Early detection
 
-- **Status:** not started. `early_warning_lead` is only a helper. No event token is defined, so no lead time has been computed and none will be filled in after the fact.
-- **Depends on:** a pre-registered definition of the event token, and a probe that scores more than one position.
-- **Acceptance:** the event definition is in this file before any test numbers are computed; the metric is null when no timely flag exists; no threshold is chosen on the test split.
+- **Status:** event defined; lead unpublished. Issue #7. The event definition below was written before any lead-time number. `eval-early-warning` scores two or more generated pieces from stored vectors and does not load Qwen. `early_warning_lead` stays null until a run stores per-prefix evidence labels. No activation edit is performed.
+- **Event definition (pre-registered):** The hallucination event index is the smallest generated-piece index *i* such that the answer prefix through piece *i* is labeled HALLUCINATED by the generation evidence protocol (`halueval_generation_evidence_v1` or `truthfulqa_generation_v1`) or by a documented human review that cites passage evidence. Prefixes that remain UNVALIDATED or AMBIGUOUS are not events. The empty prefix is not an event. `early_warning_lead` is the existing helper and stays null when this event is not stored on the run, when no prefix is an event, or when no probe flag occurs at or before the event. Thresholds are chosen on validation only. This measurement is not a calibrated risk, is not an activation edit, and is not evidence for pair-protocol AUROC.
+- **Depends on:** per-prefix evidence labels on a generation run, which do not exist yet.
+- **Acceptance:** the event definition is in this file before any test numbers are computed; the metric is null when no timely flag exists; no threshold is chosen on the test split. Unit tests cover two-position scoring, a missing event, and a missing timely flag. No lead-time number is published.
 - **Owner:** unassigned.
 
 ### 9. Activation intervention
