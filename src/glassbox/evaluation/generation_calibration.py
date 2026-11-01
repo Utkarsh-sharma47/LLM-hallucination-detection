@@ -1,8 +1,8 @@
 """Pre-registered generation-level calibration gate.
 
-This is issue #18. It decides whether a pair-probe score on Qwen generations
-may be described as a calibrated factual-risk probability. It does not train,
-does not choose a threshold, and does not rewrite the live pair probe.
+This is issue #18. It evaluates generation-probe scores against independent
+generation evidence. Pair-probe scores are ineligible. It does not train,
+choose a threshold, or rewrite the live pair probe.
 
 The operating threshold stays the frozen HaluEval value 0.65. The ECE limit
 stays 0.10. The five-label TruthfulQA pilot is ineligible.
@@ -15,9 +15,15 @@ from pathlib import Path
 
 import numpy as np
 
+from glassbox.data.evidence import (
+    GENERATION_LABEL_SOURCE,
+    HUMAN_REVIEW_SOURCE,
+    TRUTHFULQA_COVERAGE_SOURCE,
+)
 from glassbox.data.schema import Label
+from glassbox.evaluation.calibration_metrics import calibration_report
 from glassbox.evaluation.metrics import BOOTSTRAP_MIN_PER_CLASS
-from glassbox.probes.scoring import CALIBRATION_ECE_LIMIT, expected_calibration_error
+from glassbox.probes.scoring import CALIBRATION_ECE_LIMIT
 
 # Frozen on halueval-pair-002. Do not replace after seeing generation scores.
 PAIR_THRESHOLD = 0.65
@@ -35,8 +41,12 @@ GATE_NOTE = (
     f"Validation ECE must be at most {GENERATION_CALIBRATION_ECE_LIMIT}. "
     "The test split is not used to choose the threshold or the ECE limit. "
     "UNVALIDATED and AMBIGUOUS stay out of the ECE denominator. "
-    "A passing gate is the only path that may describe the score as a calibrated probability. "
-    "Pair-protocol AUROC is not evidence for that claim."
+    "Only independently evaluated generation-probe scores may enter this gate. "
+    "Pair-protocol scores are ineligible. A passing gate is the only path that may describe "
+    "the score as a calibrated probability."
+)
+INDEPENDENT_LABEL_SOURCES = frozenset(
+    {GENERATION_LABEL_SOURCE, HUMAN_REVIEW_SOURCE, TRUTHFULQA_COVERAGE_SOURCE}
 )
 
 
@@ -51,8 +61,8 @@ def evaluate_generation_calibration_gate(
 ) -> dict[str, object]:
     """Return the gate decision. Never writes probe metadata.
 
-    ``score_source`` must be ``pair_probe``. Generation-probe scores are not
-    accepted, even when they are numerically well calibrated.
+    ``pair_probe`` scores are ineligible. A generation probe can qualify only
+    with validation labels assigned by an independent evidence protocol.
     """
     if is_five_label_pilot:
         return _rejected(
@@ -81,10 +91,18 @@ def evaluate_generation_calibration_gate(
             pair_probe_path=pair_probe_path,
             pair_probe_metadata=pair_probe_metadata,
         )
-    if score_source != "pair_probe":
+    if score_source == "pair_probe":
         return _rejected(
-            "The generation calibration gate only reads pair-probe scores at the frozen "
-            f"threshold {PAIR_THRESHOLD}. Generation-probe scores are not a substitute.",
+            "Pair-protocol probe scores are ineligible for generation calibration.",
+            counts=_counts(validation_rows),
+            eligible=(),
+            pair_probe_path=pair_probe_path,
+            pair_probe_metadata=pair_probe_metadata,
+        )
+    if score_source != "generation_probe":
+        return _rejected(
+            "The generation calibration gate requires independently evaluated generation-probe "
+            f"scores at the frozen threshold {PAIR_THRESHOLD}.",
             counts=_counts(validation_rows),
             eligible=(),
             pair_probe_path=pair_probe_path,
@@ -97,12 +115,80 @@ def evaluate_generation_calibration_gate(
         if row.get("label") in {Label.FAITHFUL.name, Label.HALLUCINATED.name}
         and row.get("probe_score") is not None
         and not row.get("split_overlap")
+        and row.get("score_source") == "generation_probe"
+        and row.get("label_source") in INDEPENDENT_LABEL_SOURCES
     ]
+    binary_scored = [
+        row
+        for row in scored_rows
+        if row.get("label") in {Label.FAITHFUL.name, Label.HALLUCINATED.name}
+        and row.get("probe_score") is not None
+        and not row.get("split_overlap")
+    ]
+    if len(eligible) != len(binary_scored):
+        return _rejected(
+            "Generation calibration requires score_source='generation_probe' and evidence labels "
+            "from a registered independent label source.",
+            counts=_counts(scored_rows),
+            eligible=(),
+            pair_probe_path=pair_probe_path,
+            pair_probe_metadata=pair_probe_metadata,
+        )
     counts = _counts(scored_rows)
     counts["eligible_faithful"] = sum(row["label"] == Label.FAITHFUL.name for row in eligible)
     counts["eligible_hallucinated"] = sum(
         row["label"] == Label.HALLUCINATED.name for row in eligible
     )
+    test_rows = [row for row in rows if row.get("split") == "test"]
+    test_eligible = [
+        row
+        for row in test_rows
+        if row.get("label") in {Label.FAITHFUL.name, Label.HALLUCINATED.name}
+        and row.get("probe_score") is not None
+        and not row.get("split_overlap")
+        and row.get("score_source") == "generation_probe"
+        and row.get("label_source") in INDEPENDENT_LABEL_SOURCES
+    ]
+    test_groups = [
+        str(row.get("group_id") or row.get("question_id") or "") for row in test_eligible
+    ]
+    test_calibration: dict[str, object] = {
+        "eligible_n": len(test_eligible),
+        "sample_counts": _counts(test_rows),
+        "metrics": None,
+        "note": "No eligible labeled test rows were available for calibration reporting.",
+    }
+    if test_eligible and all(test_groups):
+        test_calibration["metrics"] = calibration_report(
+            [1 if row["label"] == Label.HALLUCINATED.name else 0 for row in test_eligible],
+            [float(row["probe_score"]) for row in test_eligible],
+            test_groups,
+        )
+        test_calibration["note"] = "Reporting only; test metrics do not affect gate acceptance."
+    elif test_eligible:
+        test_calibration["note"] = (
+            "Test calibration metrics unavailable: question or knowledge-group ids are missing."
+        )
+    groups = [str(row.get("group_id") or row.get("question_id") or "") for row in eligible]
+    if any(not group for group in groups):
+        return _rejected(
+            "Generation calibration requires a question or knowledge-group id for grouped "
+            "uncertainty estimates.",
+            counts=counts,
+            eligible=eligible,
+            pair_probe_path=pair_probe_path,
+            pair_probe_metadata=pair_probe_metadata,
+            test_calibration=test_calibration,
+        )
+    if set(groups) & set(test_groups):
+        return _rejected(
+            "Validation and test calibration rows share a question/knowledge group.",
+            counts=counts,
+            eligible=eligible,
+            pair_probe_path=pair_probe_path,
+            pair_probe_metadata=pair_probe_metadata,
+            test_calibration=test_calibration,
+        )
     smaller = min(counts["eligible_faithful"], counts["eligible_hallucinated"])
     if smaller < GENERATION_CALIBRATION_MIN_PER_CLASS:
         return _rejected(
@@ -114,12 +200,16 @@ def evaluate_generation_calibration_gate(
             eligible=eligible,
             pair_probe_path=pair_probe_path,
             pair_probe_metadata=pair_probe_metadata,
+            test_calibration=test_calibration,
         )
     labels = np.asarray(
         [1 if row["label"] == Label.HALLUCINATED.name else 0 for row in eligible], dtype=int
     )
     scores = np.asarray([float(row["probe_score"]) for row in eligible], dtype=np.float64)
-    ece = expected_calibration_error(labels, scores)
+    validation_calibration = calibration_report(labels, scores, groups)
+    validation_calibration["eligible_n"] = len(eligible)
+    validation_calibration["sample_counts"] = counts
+    ece = float(validation_calibration["ece"])
     if ece > GENERATION_CALIBRATION_ECE_LIMIT:
         return _rejected(
             (
@@ -131,6 +221,8 @@ def evaluate_generation_calibration_gate(
             pair_probe_path=pair_probe_path,
             pair_probe_metadata=pair_probe_metadata,
             ece=ece,
+            validation_calibration=validation_calibration,
+            test_calibration=test_calibration,
         )
     return {
         "status": "accepted",
@@ -140,6 +232,9 @@ def evaluate_generation_calibration_gate(
         "risk_status": "calibrated generation probability",
         "threshold": PAIR_THRESHOLD,
         "ece": float(ece),
+        "brier": validation_calibration["brier"],
+        "validation_calibration": validation_calibration,
+        "test_calibration": test_calibration,
         "ece_limit": GENERATION_CALIBRATION_ECE_LIMIT,
         "min_per_class": GENERATION_CALIBRATION_MIN_PER_CLASS,
         "sample_counts": counts,
@@ -164,6 +259,8 @@ def _rejected(
     pair_probe_path: Path | None,
     pair_probe_metadata: Mapping[str, object] | None,
     ece: float | None = None,
+    validation_calibration: Mapping[str, object] | None = None,
+    test_calibration: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     return {
         "status": "rejected",
@@ -173,6 +270,9 @@ def _rejected(
         "risk_status": RISK_STATUS,
         "threshold": PAIR_THRESHOLD,
         "ece": ece,
+        "brier": None if validation_calibration is None else validation_calibration.get("brier"),
+        "validation_calibration": validation_calibration,
+        "test_calibration": test_calibration,
         "ece_limit": GENERATION_CALIBRATION_ECE_LIMIT,
         "min_per_class": GENERATION_CALIBRATION_MIN_PER_CLASS,
         "sample_counts": counts,

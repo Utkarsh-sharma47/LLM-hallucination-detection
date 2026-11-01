@@ -137,7 +137,21 @@ def check_compatibility(
 
 
 def experimental_score(loaded: LoadedProbe, feature: np.ndarray) -> float:
-    """Apply the saved scaler and return the uncalibrated positive-class score."""
+    """Apply saved preprocessing and any validated calibration to one feature."""
+    raw = raw_score(loaded, feature)
+    if not loaded.calibrated:
+        return raw
+    if loaded.metadata.get("calibration") == "generation_validation_ece_gate":
+        return raw
+    platt = loaded.metadata.get("platt")
+    if not isinstance(platt, dict) or "coef" not in platt or "intercept" not in platt:
+        raise ProbeCompatibilityError("calibrated probe is missing Platt coefficients")
+    calibrated = apply_platt(np.asarray([raw]), float(platt["coef"]), float(platt["intercept"]))
+    return float(calibrated[0])
+
+
+def raw_score(loaded: LoadedProbe, feature: np.ndarray) -> float:
+    """Apply saved preprocessing and return the classifier's uncalibrated output."""
     preprocessing = loaded.metadata["preprocessing"]
     mean = np.asarray(preprocessing["mean"], dtype=np.float64)
     scale = np.asarray(preprocessing["scale"], dtype=np.float64)
@@ -147,11 +161,4 @@ def experimental_score(loaded: LoadedProbe, feature: np.ndarray) -> float:
             f"feature dimension {vector.shape} does not match scaler {mean.shape}"
         )
     transformed = apply_standard_scaler(vector, mean, scale)
-    raw = float(loaded.probe.predict_proba(transformed)[0])
-    if not loaded.calibrated:
-        return raw
-    platt = loaded.metadata.get("platt")
-    if not isinstance(platt, dict) or "coef" not in platt or "intercept" not in platt:
-        raise ProbeCompatibilityError("calibrated probe is missing Platt coefficients")
-    calibrated = apply_platt(np.asarray([raw]), float(platt["coef"]), float(platt["intercept"]))
-    return float(calibrated[0])
+    return float(loaded.probe.predict_proba(transformed)[0])

@@ -457,10 +457,9 @@ def test_finalize_keeps_scores_experimental_and_separate_from_the_live_probe(
     assert (tmp_path / "experiments" / "synthetic" / "features.npz").is_file()
     assert not (tmp_path / "probes" / "final-hidden-state").exists()
     assert report["calibration"]["calibration_validated"] is False
-    assert report["generation_probe_platt"]["calibration_validated"] is False
 
 
-def test_generation_scores_are_not_sent_to_the_calibration_gate() -> None:
+def test_generation_scores_are_sent_to_the_calibration_gate() -> None:
     rows = []
     for index in range(20):
         rows.append(
@@ -468,8 +467,10 @@ def test_generation_scores_are_not_sent_to_the_calibration_gate() -> None:
                 "question_id": f"f{index}",
                 "split": "validation",
                 "label_name": "FAITHFUL",
+                "label_source": "halueval_generation_evidence_v1",
                 "probe_score": 0.02,
                 "vector": np.zeros(4),
+                "group_id": f"gf{index}",
             }
         )
         rows.append(
@@ -477,16 +478,17 @@ def test_generation_scores_are_not_sent_to_the_calibration_gate() -> None:
                 "question_id": f"h{index}",
                 "split": "validation",
                 "label_name": "HALLUCINATED",
+                "label_source": "halueval_generation_evidence_v1",
                 "probe_score": 0.98,
                 "vector": np.ones(4),
+                "group_id": f"gh{index}",
             }
         )
-    decision = _generation_calibration_gate(rows, None)
-    assert decision["status"] == "rejected"
-    assert decision["calibration_validated"] is False
-    assert decision["factual_risk_available"] is False
-    assert decision["ece"] is None
-    assert "pair-probe" in str(decision["reason"])
+    decision = _generation_calibration_gate(rows)
+    assert decision["status"] == "accepted"
+    assert decision["calibration_validated"] is True
+    assert decision["factual_risk_available"] is True
+    assert decision["ece"] == pytest.approx(0.02)
 
 
 def _population(

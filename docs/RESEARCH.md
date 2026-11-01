@@ -229,7 +229,7 @@ The generation-001 evidence-labeled rows are a different picture. Faithful and h
 
 A 2400-question expansion plan keeps the 001 question ids in their original knowledge-group splits and would add 336 new validation and 336 new test questions. Known validation labels remain 14 faithful and 7 hallucinated. The 20-per-class target is not met until those new answers are generated or a human review cites passage evidence. Unvalidated rows were not converted into binary labels. The review command writes an append-only JSONL history beside the frozen `review_queue.json`.
 
-Issue #18 stays rejected: validation still has 7 hallucinated rows. The gate reads pair-probe scores only. A generation-probe score, including a score that looks calibrated, does not open it, and pair-protocol Platt scaling does not mark the generation probe calibrated.
+Issue #18 stays rejected: validation still has 7 hallucinated rows, below the required 20 per class. The registered gate now accepts only independently evaluated generation-probe scores; `score_source == "pair_probe"` is an explicit rejection. The synthetic gate tests are not experiment results, and no existing run or probe metadata was recalculated or rewritten.
 
 `build-generation-v2` joins those cached 001 rows onto the 2400-question plan. It does not generate the missing 1680 answers, does not invent human labels, and does not rewrite 001. Mean-pool comparison on the identical split still requires stored mean vectors, which 001 did not keep.
 

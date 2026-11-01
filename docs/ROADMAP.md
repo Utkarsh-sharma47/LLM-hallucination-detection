@@ -79,6 +79,38 @@ Owners are unassigned unless noted. The GitHub repository owner is the default r
 - **Acceptance:** a config checked in CI that exits 0 on `src/glassbox` without disabling the run wholesale.
 - **Owner:** unassigned.
 
+### 11. Generation calibration uncertainty (#18, #38)
+
+- **Status:** protocol and metric code implemented; no new run is claimed. The gate rejects
+  `score_source == "pair_probe"` and accepts only independently labeled generation-probe scores.
+  Brier score and fixed-bin ECE are reported with question-group bootstrap intervals when support
+  permits. The recorded 14-faithful / 7-hallucinated validation split remains below the 20-per-class
+  floor, so calibration remains unavailable.
+- **Depends on:** an independently labeled generation-probe validation/test set with adequate
+  support. The 20-per-class floor is not a power or precision rationale.
+- **Acceptance:** validation alone controls the ECE ≤ 0.10 gate; test reliability is reporting-only.
+  Insufficient samples, groups, or valid resamples yield null intervals. See
+  [CALIBRATION_PROTOCOL.md](CALIBRATION_PROTOCOL.md).
+- **Owner:** unassigned.
+
+## Open research requirements (checked 1 November 2026)
+
+- **Issue #7:** event definition and two-or-more-position scoring code are present and unit-tested.
+  No per-prefix evidence labels exist, so the lead remains null and no early-warning result is
+  published.
+- **Issue #13:** the generation-layer comparison is pre-registered and tested. The available
+  generation record lacks extra layer vectors, so a layer sweep has not been measured.
+- **Issue #37:** no independently reviewed cross-domain evaluation set is available. The protocol
+  and matched shortcut controls cannot produce a generalization result without that data.
+- **Issue #39:** capture still performs a full-sequence hidden-state pass. No reproducible
+  latency/peak-memory benchmark artifacts are available; retained NumPy byte limits are not a
+  bound on transient model memory.
+- **Issue #40:** claim verification remains an explicitly curated, offline catalog. No source policy
+  or independently reviewed retrieval set exists, so runtime retrieval is not enabled.
+- **Issue #41:** the review queue and append-only single-review history exist, but no human review
+  has been applied. Independent duplicate review, blinded adjudication, agreement, and adequate
+  class coverage are not yet available.
+
 ## Done
 
 - Offline package import, download guard, and smoke test against `configs/default.yaml`.
