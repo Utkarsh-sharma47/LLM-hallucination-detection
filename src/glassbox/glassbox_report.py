@@ -182,7 +182,10 @@ class GlassBoxReport:
             f"Hidden-state dimension: {int(gen.feature.shape[0]) if gen.feature is not None else 'unavailable'}",
             f"Feature layer: {gen.feature_layer}",
             f"Token capture configuration: {gen.capture_mode}",
-            f"Capture bytes: {gen.capture_bytes}",
+            f"Capture bytes: {gen.capture_bytes} (budget cap: 32 MB)",
+            f"Transient hidden-state peak: {getattr(gen, 'transient_hidden_state_bytes', 0)} bytes",
+            f"Analysis forward passes: {getattr(gen, 'analysis_forward_calls', 0)}",
+            f"Analysis latency: {getattr(gen, 'analysis_latency_seconds', 0.0):.3f}s",
             f"Capture note: {gen.capture_note}",
         ]
         return "\n".join(lines)
@@ -359,6 +362,9 @@ class GlassBoxReport:
             "capture_mode": gen.capture_mode,
             "capture_bytes": gen.capture_bytes,
             "capture_note": gen.capture_note,
+            "transient_hidden_state_bytes": getattr(gen, "transient_hidden_state_bytes", 0),
+            "analysis_latency_seconds": getattr(gen, "analysis_latency_seconds", 0.0),
+            "analysis_forward_calls": getattr(gen, "analysis_forward_calls", 0),
         }
 
     def _probe_json(self) -> dict[str, Any]:

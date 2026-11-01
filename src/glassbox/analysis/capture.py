@@ -8,23 +8,24 @@ forward, and they do not treat a cosine change as a hallucination onset.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 
-CAPTURE_MODES = ("final", "generated", "selected", "all")
+CAPTURE_MODES = ("none", "final", "generated", "selected", "all")
 BYTE_LIMIT = 32_000_000
 
 
 def select_layers(hidden_count: int, mode: str, feature_layer: int) -> tuple[int, ...]:
-    """Choose layer indexes for a capture mode. ``final`` keeps none of the span."""
+    """Choose layer indexes for a capture mode. ``none`` and ``final`` keep none of the span."""
     if mode not in CAPTURE_MODES:
         raise ValueError(f"capture mode must be one of {', '.join(CAPTURE_MODES)}")
     if hidden_count < 1:
         raise ValueError("hidden_count must be positive")
     if not 0 <= feature_layer < hidden_count:
         raise ValueError("feature_layer is outside the hidden-state list")
-    if mode == "final":
+    if mode in ("none", "final"):
         return ()
     if mode == "generated":
         return (feature_layer,)
@@ -39,6 +40,37 @@ def estimate_bytes(generated: int, layers: int, dimension: int) -> int:
     if min(generated, layers, dimension) < 0:
         raise ValueError("capture sizes must be non-negative")
     return int(generated) * int(layers) * int(dimension) * 4
+
+
+def estimate_transient_hidden_state_bytes(
+    sequence_length: int,
+    layer_count: int,
+    dimension: int,
+    bytes_per_element: int = 4,
+) -> int:
+    """Calculate model-side transient memory materialized when output_hidden_states=True.
+
+    This reflects the uncompressed PyTorch tensor tuple held across all layers
+    before slicing, which is separate from the 32 MB retained NumPy cap.
+    """
+    if min(sequence_length, layer_count, dimension, bytes_per_element) < 0:
+        raise ValueError("dimensions must be non-negative")
+    return int(sequence_length) * int(layer_count) * int(dimension) * int(bytes_per_element)
+
+
+@dataclass(frozen=True)
+class MemoryBreakdown:
+    """Explicit breakdown of memory overhead during generation and analysis."""
+
+    prompt_tokens: int
+    generated_tokens: int
+    total_tokens: int
+    layer_count: int
+    hidden_dimension: int
+    transient_hidden_state_bytes: int
+    retained_capture_bytes: int
+    retained_cap_bytes: int = BYTE_LIMIT
+    capture_mode: str = "final"
 
 
 def spans_within_budget(
