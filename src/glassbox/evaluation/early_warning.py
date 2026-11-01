@@ -35,6 +35,48 @@ EVENT_DEFINITION = (
 )
 
 
+def extract_generated_piece_vectors(payload: dict[str, object]) -> tuple[np.ndarray, int | None]:
+    """Extract generated-piece vectors from a score payload.
+
+    New payloads can provide ``generated_positions`` with per-piece provenance.
+    Legacy payloads can still provide ``piece_vectors`` directly.
+    """
+    event_index = payload.get("event_index")
+    if "generated_positions" not in payload:
+        vectors = np.asarray(payload["piece_vectors"], dtype=np.float64)
+        return vectors, None if event_index is None else int(event_index)
+    rows = payload["generated_positions"]
+    if not isinstance(rows, list) or len(rows) < 2:
+        raise ValueError("generated_positions must contain at least two generated pieces")
+    keyed: list[tuple[int, np.ndarray]] = []
+    reference: tuple[str, str, str] | None = None
+    for row in rows:
+        if not isinstance(row, dict):
+            raise ValueError("generated_positions rows must be objects")
+        index = row.get("generated_piece_index")
+        if isinstance(index, bool) or not isinstance(index, int) or index < 0:
+            raise ValueError("generated_piece_index must be a non-negative integer")
+        vector = np.asarray(row.get("vector"), dtype=np.float64)
+        if vector.ndim != 1:
+            raise ValueError("each generated position vector must be one-dimensional")
+        model_name = str(row.get("model_name"))
+        model_revision = str(row.get("model_revision"))
+        dtype = str(row.get("dtype"))
+        current = (model_name, model_revision, dtype)
+        if reference is None:
+            reference = current
+        elif current != reference:
+            raise ValueError(
+                "generated positions must use one model_name, model_revision, and dtype"
+            )
+        keyed.append((index, vector))
+    keyed.sort(key=lambda item: item[0])
+    indexes = [index for index, _ in keyed]
+    if len(set(indexes)) != len(indexes):
+        raise ValueError("generated_piece_index values must be unique")
+    return np.vstack([vector for _, vector in keyed]), None if event_index is None else int(event_index)
+
+
 def event_index_from_prefix_labels(labels: Sequence[str]) -> int | None:
     """Return the first HALLUCINATED prefix, or None.
 
@@ -109,8 +151,7 @@ def early_warning_command(args: object) -> int:
         if directory.exists():
             raise FileExistsError(f"Refusing to overwrite {directory}")
         payload = json.loads(Path(args.scores).read_text(encoding="utf-8"))
-        vectors = np.asarray(payload["piece_vectors"], dtype=np.float64)
-        event_index = payload.get("event_index")
+        vectors, event_index = extract_generated_piece_vectors(payload)
         threshold = float(payload.get("threshold", PAIR_THRESHOLD))
 
         def _score(vector: np.ndarray) -> float:
