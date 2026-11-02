@@ -76,16 +76,26 @@ class MemoryBreakdown:
 def spans_within_budget(
     generated: int, layers: Sequence[int], dimension: int
 ) -> tuple[tuple[int, ...], str]:
-    """Drop to the feature layer when the selected copy would exceed the cap."""
+    """Drop to the feature layer when the selected copy would exceed the cap.
+
+    If even a single layer's span exceeds BYTE_LIMIT, returns () so the retained
+    copy is guaranteed to never exceed the cap.
+    """
     chosen = tuple(layers)
-    if estimate_bytes(generated, len(chosen), dimension) <= BYTE_LIMIT:
-        return chosen, ""
     if not chosen:
         return (), ""
-    kept = (chosen[-1],)
-    return kept, (
-        f"Capture was narrowed to one layer. {len(chosen)} layers of {generated} pieces "
-        f"would exceed {BYTE_LIMIT} bytes."
+    if estimate_bytes(generated, len(chosen), dimension) <= BYTE_LIMIT:
+        return chosen, ""
+    single_bytes = estimate_bytes(generated, 1, dimension)
+    if single_bytes <= BYTE_LIMIT:
+        kept = (chosen[-1],)
+        return kept, (
+            f"Capture was narrowed to one layer. {len(chosen)} layers of {generated} pieces "
+            f"would exceed {BYTE_LIMIT} bytes."
+        )
+    return (), (
+        f"Token span capture was skipped. Even a single layer of {generated} pieces "
+        f"({single_bytes} bytes) exceeds the budget cap of {BYTE_LIMIT} bytes."
     )
 
 

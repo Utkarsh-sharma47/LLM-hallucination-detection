@@ -411,7 +411,7 @@ def run_generation(
             settings=settings,
         )
         analysis_latency = time.perf_counter() - analysis_start
-        analysis_calls = 1
+        analysis_calls = int(capture.get("forward_calls", 0))
 
     return GenerationResult(
         question=question.strip(),
@@ -700,7 +700,14 @@ def _read_hidden_states(
             False,
             str(exc),
             None,
-            {"mode": settings.capture_mode, "spans": {}, "nbytes": 0, "note": str(exc)},
+            {
+                "mode": settings.capture_mode,
+                "spans": {},
+                "nbytes": 0,
+                "transient_bytes": 0,
+                "forward_calls": 0,
+                "note": str(exc),
+            },
         )
     try:
         with torch.inference_mode():
@@ -719,6 +726,8 @@ def _read_hidden_states(
                     "mode": settings.capture_mode,
                     "spans": {},
                     "nbytes": 0,
+                    "transient_bytes": 0,
+                    "forward_calls": 1,
                     "note": "Hidden-state forward pass ran out of memory.",
                 },
             )
@@ -734,6 +743,8 @@ def _read_hidden_states(
                 "mode": settings.capture_mode,
                 "spans": {},
                 "nbytes": 0,
+                "transient_bytes": 0,
+                "forward_calls": 1,
                 "note": f"Hidden-state forward pass failed: {exc}",
             },
         )
@@ -751,6 +762,8 @@ def _read_hidden_states(
                 "mode": settings.capture_mode,
                 "spans": {},
                 "nbytes": 0,
+                "transient_bytes": 0,
+                "forward_calls": 1,
                 "note": "The model returned no hidden states.",
             },
         )
@@ -808,6 +821,7 @@ def _read_hidden_states(
             "spans": token_spans,
             "nbytes": capture_bytes,
             "transient_bytes": transient_bytes,
+            "forward_calls": 1,
             "note": capture_note or "Capture completed.",
         },
     )
