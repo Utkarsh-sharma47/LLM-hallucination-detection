@@ -1,0 +1,516 @@
+{
+  "reason": "Saved an experimental probe to C:\\Users\\HP\\OneDrive\\Documents\\sem5\\tai lab\\project\\LLM-hallucination-detection\\artifacts\\probes\\final-hidden-state. Calibration was not validated, so the demo must not present the score as a factual-risk percentage.",
+  "report": {
+    "baselines": {
+      "answer_length": {
+        "metrics": {
+          "auprc": 0.9736184274081859,
+          "auroc": 0.9809375,
+          "f1": 0.9397590361445783,
+          "false_positive_rate": 0.1,
+          "precision": 0.9069767441860465,
+          "recall": 0.975
+        },
+        "note": "Two features: character length and whitespace-separated word count of the supplied answer. The threshold was chosen on validation. AUROC does not use that threshold. halueval-pair-002 scored this baseline at threshold 0.5; do not mix the two F1 numbers.",
+        "threshold": 0.4
+      },
+      "lexical_overlap": {
+        "auprc": 1.0,
+        "auroc": 1.0,
+        "f1": 1.0,
+        "false_positive_rate": 0.0,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      "lexical_overlap_note": "Overlap uses the gold answer string. Under the pair protocol that string is the faithful answer, so this baseline can recover the label without hidden states.",
+      "majority": {
+        "auprc": null,
+        "auroc": null,
+        "f1": 0.6666666666666666,
+        "false_positive_rate": 1.0,
+        "note": "A constant prediction does not define AUROC or AUPRC. Those values were not filled in.",
+        "precision": 0.5,
+        "predicted_class": 1,
+        "recall": 1.0
+      },
+      "probe_auroc_interval": {
+        "high": 1.0,
+        "low": 0.9819294094592486,
+        "metric": "auroc",
+        "n": 80,
+        "note": "Percentile interval from resampling these scored rows with replacement. It does not transfer to another dataset.",
+        "point": 0.995,
+        "resamples_used": 1000
+      },
+      "shuffled_label": {
+        "metrics": {
+          "auprc": 0.44784332556034956,
+          "auroc": 0.411875,
+          "f1": 0.46153846153846156,
+          "false_positive_rate": 0.5,
+          "precision": 0.47368421052631576,
+          "recall": 0.45
+        },
+        "note": "Training labels were permuted with the run seed. Test labels were left intact."
+      }
+    },
+    "calibration_rejected": "Test ECE 0.113 is above 0.1. The saved score stays the uncalibrated logistic output.",
+    "calibration_rule": "Platt scaling is fit on validation scores only. It is accepted when each of validation and test has at least 15 rows of each class and the test ECE is at most 0.1.",
+    "layer_index": 24,
+    "metrics_scale": "Uncalibrated logistic probabilities at the validation threshold.",
+    "platt": {
+      "coef": 3.917249287400386,
+      "intercept": -1.8437666112017823
+    },
+    "test_auroc_interval": {
+      "high": 1.0,
+      "low": 0.9819294094592486,
+      "metric": "auroc",
+      "n": 80,
+      "note": "Percentile interval from resampling these scored rows with replacement. It does not transfer to another dataset.",
+      "point": 0.995,
+      "resamples_used": 1000
+    },
+    "test_auroc_interval_note": "Percentile interval from resampling these scored test rows with replacement. It does not transfer to another dataset or to Qwen's own generations. An interval does not validate calibration.",
+    "test_class_counts": {
+      "faithful": 40,
+      "hallucinated": 40
+    },
+    "test_confusion": {
+      "fn": 0,
+      "fp": 1,
+      "tn": 39,
+      "tp": 40
+    },
+    "test_ece": 0.112917747835045,
+    "test_metrics": {
+      "auprc": 0.9946466235725184,
+      "auroc": 0.995,
+      "f1": 0.9876543209876543,
+      "false_positive_rate": 0.025,
+      "precision": 0.975609756097561,
+      "recall": 1.0
+    },
+    "test_scores": [
+      {
+        "example_id": "halueval_qa:row8975.faithful",
+        "label": 0,
+        "probe_score": 0.03038562703716636
+      },
+      {
+        "example_id": "halueval_qa:row8975.hallucinated",
+        "label": 1,
+        "probe_score": 0.9999816910072441
+      },
+      {
+        "example_id": "halueval_qa:row9773.faithful",
+        "label": 0,
+        "probe_score": 0.025595186813007837
+      },
+      {
+        "example_id": "halueval_qa:row9773.hallucinated",
+        "label": 1,
+        "probe_score": 0.9999959523588421
+      },
+      {
+        "example_id": "halueval_qa:row243.faithful",
+        "label": 0,
+        "probe_score": 7.127551982824547e-06
+      },
+      {
+        "example_id": "halueval_qa:row243.hallucinated",
+        "label": 1,
+        "probe_score": 0.9983805339862304
+      },
+      {
+        "example_id": "halueval_qa:row3974.faithful",
+        "label": 0,
+        "probe_score": 0.00038346142529694483
+      },
+      {
+        "example_id": "halueval_qa:row3974.hallucinated",
+        "label": 1,
+        "probe_score": 0.9998921487067663
+      },
+      {
+        "example_id": "halueval_qa:row7546.faithful",
+        "label": 0,
+        "probe_score": 0.0009215228274385592
+      },
+      {
+        "example_id": "halueval_qa:row7546.hallucinated",
+        "label": 1,
+        "probe_score": 0.9998519894618068
+      },
+      {
+        "example_id": "halueval_qa:row992.faithful",
+        "label": 0,
+        "probe_score": 0.0166791106509225
+      },
+      {
+        "example_id": "halueval_qa:row992.hallucinated",
+        "label": 1,
+        "probe_score": 0.9999660677344154
+      },
+      {
+        "example_id": "halueval_qa:row440.faithful",
+        "label": 0,
+        "probe_score": 0.0013469548558385205
+      },
+      {
+        "example_id": "halueval_qa:row440.hallucinated",
+        "label": 1,
+        "probe_score": 0.9998866763940598
+      },
+      {
+        "example_id": "halueval_qa:row2161.faithful",
+        "label": 0,
+        "probe_score": 0.0001650882010050354
+      },
+      {
+        "example_id": "halueval_qa:row2161.hallucinated",
+        "label": 1,
+        "probe_score": 0.9999722929394036
+      },
+      {
+        "example_id": "halueval_qa:row5622.faithful",
+        "label": 0,
+        "probe_score": 0.01125472507797074
+      },
+      {
+        "example_id": "halueval_qa:row5622.hallucinated",
+        "label": 1,
+        "probe_score": 0.9996915063707467
+      },
+      {
+        "example_id": "halueval_qa:row4760.faithful",
+        "label": 0,
+        "probe_score": 0.057412989329566705
+      },
+      {
+        "example_id": "halueval_qa:row4760.hallucinated",
+        "label": 1,
+        "probe_score": 0.9996155138494133
+      },
+      {
+        "example_id": "halueval_qa:row4186.faithful",
+        "label": 0,
+        "probe_score": 0.005237652049457324
+      },
+      {
+        "example_id": "halueval_qa:row4186.hallucinated",
+        "label": 1,
+        "probe_score": 0.9999895389724305
+      },
+      {
+        "example_id": "halueval_qa:row7540.faithful",
+        "label": 0,
+        "probe_score": 0.002754260207780755
+      },
+      {
+        "example_id": "halueval_qa:row7540.hallucinated",
+        "label": 1,
+        "probe_score": 0.9999758994894578
+      },
+      {
+        "example_id": "halueval_qa:row9323.faithful",
+        "label": 0,
+        "probe_score": 2.0979685689368034e-05
+      },
+      {
+        "example_id": "halueval_qa:row9323.hallucinated",
+        "label": 1,
+        "probe_score": 0.9989479295092927
+      },
+      {
+        "example_id": "halueval_qa:row6961.faithful",
+        "label": 0,
+        "probe_score": 0.01265431865727413
+      },
+      {
+        "example_id": "halueval_qa:row6961.hallucinated",
+        "label": 1,
+        "probe_score": 0.9999867117046723
+      },
+      {
+        "example_id": "halueval_qa:row443.faithful",
+        "label": 0,
+        "probe_score": 0.00019171923881377046
+      },
+      {
+        "example_id": "halueval_qa:row443.hallucinated",
+        "label": 1,
+        "probe_score": 0.9999740693535879
+      },
+      {
+        "example_id": "halueval_qa:row3847.faithful",
+        "label": 0,
+        "probe_score": 0.008588806220069696
+      },
+      {
+        "example_id": "halueval_qa:row3847.hallucinated",
+        "label": 1,
+        "probe_score": 0.9999413284176611
+      },
+      {
+        "example_id": "halueval_qa:row3860.faithful",
+        "label": 0,
+        "probe_score": 0.00195262182076437
+      },
+      {
+        "example_id": "halueval_qa:row3860.hallucinated",
+        "label": 1,
+        "probe_score": 0.9999889450699323
+      },
+      {
+        "example_id": "halueval_qa:row1721.faithful",
+        "label": 0,
+        "probe_score": 0.00020505195351498034
+      },
+      {
+        "example_id": "halueval_qa:row1721.hallucinated",
+        "label": 1,
+        "probe_score": 0.9998330719345774
+      },
+      {
+        "example_id": "halueval_qa:row9934.faithful",
+        "label": 0,
+        "probe_score": 0.0018922186214949306
+      },
+      {
+        "example_id": "halueval_qa:row9934.hallucinated",
+        "label": 1,
+        "probe_score": 0.9999804292464334
+      },
+      {
+        "example_id": "halueval_qa:row5808.faithful",
+        "label": 0,
+        "probe_score": 0.9996325014151645
+      },
+      {
+        "example_id": "halueval_qa:row5808.hallucinated",
+        "label": 1,
+        "probe_score": 0.9990995869710582
+      },
+      {
+        "example_id": "halueval_qa:row1765.faithful",
+        "label": 0,
+        "probe_score": 0.0019128919013207846
+      },
+      {
+        "example_id": "halueval_qa:row1765.hallucinated",
+        "label": 1,
+        "probe_score": 0.9911134664924344
+      },
+      {
+        "example_id": "halueval_qa:row8094.faithful",
+        "label": 0,
+        "probe_score": 0.00018507038942925012
+      },
+      {
+        "example_id": "halueval_qa:row8094.hallucinated",
+        "label": 1,
+        "probe_score": 0.9999742131429119
+      },
+      {
+        "example_id": "halueval_qa:row8238.faithful",
+        "label": 0,
+        "probe_score": 0.0049583512725844756
+      },
+      {
+        "example_id": "halueval_qa:row8238.hallucinated",
+        "label": 1,
+        "probe_score": 0.9999901500157385
+      },
+      {
+        "example_id": "halueval_qa:row2031.faithful",
+        "label": 0,
+        "probe_score": 0.00014917577206447012
+      },
+      {
+        "example_id": "halueval_qa:row2031.hallucinated",
+        "label": 1,
+        "probe_score": 0.999966491028237
+      },
+      {
+        "example_id": "halueval_qa:row6827.faithful",
+        "label": 0,
+        "probe_score": 0.00102133927692686
+      },
+      {
+        "example_id": "halueval_qa:row6827.hallucinated",
+        "label": 1,
+        "probe_score": 0.9998897080185836
+      },
+      {
+        "example_id": "halueval_qa:row9211.faithful",
+        "label": 0,
+        "probe_score": 0.0004890446859476331
+      },
+      {
+        "example_id": "halueval_qa:row9211.hallucinated",
+        "label": 1,
+        "probe_score": 0.9999686954624873
+      },
+      {
+        "example_id": "halueval_qa:row7003.faithful",
+        "label": 0,
+        "probe_score": 0.0004682941995442082
+      },
+      {
+        "example_id": "halueval_qa:row7003.hallucinated",
+        "label": 1,
+        "probe_score": 0.9999677238446066
+      },
+      {
+        "example_id": "halueval_qa:row8331.faithful",
+        "label": 0,
+        "probe_score": 0.0005731144901893182
+      },
+      {
+        "example_id": "halueval_qa:row8331.hallucinated",
+        "label": 1,
+        "probe_score": 0.9999715889116282
+      },
+      {
+        "example_id": "halueval_qa:row5624.faithful",
+        "label": 0,
+        "probe_score": 0.00016138807616411236
+      },
+      {
+        "example_id": "halueval_qa:row5624.hallucinated",
+        "label": 1,
+        "probe_score": 0.9995098895875614
+      },
+      {
+        "example_id": "halueval_qa:row2624.faithful",
+        "label": 0,
+        "probe_score": 0.002862884210038167
+      },
+      {
+        "example_id": "halueval_qa:row2624.hallucinated",
+        "label": 1,
+        "probe_score": 0.9999927180138567
+      },
+      {
+        "example_id": "halueval_qa:row5795.faithful",
+        "label": 0,
+        "probe_score": 1.417497267396347e-05
+      },
+      {
+        "example_id": "halueval_qa:row5795.hallucinated",
+        "label": 1,
+        "probe_score": 0.9992678015629418
+      },
+      {
+        "example_id": "halueval_qa:row2547.faithful",
+        "label": 0,
+        "probe_score": 0.025872589646929213
+      },
+      {
+        "example_id": "halueval_qa:row2547.hallucinated",
+        "label": 1,
+        "probe_score": 0.999941634394068
+      },
+      {
+        "example_id": "halueval_qa:row4925.faithful",
+        "label": 0,
+        "probe_score": 0.004708966524262717
+      },
+      {
+        "example_id": "halueval_qa:row4925.hallucinated",
+        "label": 1,
+        "probe_score": 0.9998332928556929
+      },
+      {
+        "example_id": "halueval_qa:row2901.faithful",
+        "label": 0,
+        "probe_score": 0.001756605129248976
+      },
+      {
+        "example_id": "halueval_qa:row2901.hallucinated",
+        "label": 1,
+        "probe_score": 0.9998467108396524
+      },
+      {
+        "example_id": "halueval_qa:row9749.faithful",
+        "label": 0,
+        "probe_score": 2.5271568110203746e-05
+      },
+      {
+        "example_id": "halueval_qa:row9749.hallucinated",
+        "label": 1,
+        "probe_score": 0.9983409257476473
+      },
+      {
+        "example_id": "halueval_qa:row8254.faithful",
+        "label": 0,
+        "probe_score": 0.0011899838842149828
+      },
+      {
+        "example_id": "halueval_qa:row8254.hallucinated",
+        "label": 1,
+        "probe_score": 0.9999924962853034
+      },
+      {
+        "example_id": "halueval_qa:row2978.faithful",
+        "label": 0,
+        "probe_score": 0.020682930988527897
+      },
+      {
+        "example_id": "halueval_qa:row2978.hallucinated",
+        "label": 1,
+        "probe_score": 0.999969703617772
+      },
+      {
+        "example_id": "halueval_qa:row4191.faithful",
+        "label": 0,
+        "probe_score": 4.895220716266138e-05
+      },
+      {
+        "example_id": "halueval_qa:row4191.hallucinated",
+        "label": 1,
+        "probe_score": 0.9996936659192549
+      },
+      {
+        "example_id": "halueval_qa:row4151.faithful",
+        "label": 0,
+        "probe_score": 0.0026067545025838658
+      },
+      {
+        "example_id": "halueval_qa:row4151.hallucinated",
+        "label": 1,
+        "probe_score": 0.9999401419028596
+      },
+      {
+        "example_id": "halueval_qa:row3460.faithful",
+        "label": 0,
+        "probe_score": 0.00020099063852628129
+      },
+      {
+        "example_id": "halueval_qa:row3460.hallucinated",
+        "label": 1,
+        "probe_score": 0.9999903066301098
+      }
+    ],
+    "threshold": 0.55,
+    "threshold_rule": "Maximum validation F1 on the grid 0.05..0.95. Ties keep the lower false-positive rate.",
+    "train_class_counts": {
+      "faithful": 120,
+      "hallucinated": 120
+    },
+    "validation_class_counts": {
+      "faithful": 40,
+      "hallucinated": 40
+    },
+    "validation_ece": 0.10631531483567791,
+    "validation_layer_metrics": [
+      {
+        "layer_index": 24,
+        "note": "Validation only. This table does not choose the saved layer and does not read the test split.",
+        "validation_auprc": 0.976689497716895,
+        "validation_auroc": 0.956875
+      }
+    ]
+  }
+}
