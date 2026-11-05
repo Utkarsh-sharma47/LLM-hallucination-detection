@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import threading
+
 import numpy as np
 import pytest
 
+from glassbox.analysis import capture_benchmark
 from glassbox.analysis.capture import (
     BYTE_LIMIT,
     estimate_bytes,
@@ -253,7 +256,68 @@ def test_capture_benchmark_runner():
     assert records[1].analysis_forward_calls == 1
     assert records[1].estimated_transient_hidden_state_bytes > 0
     assert isinstance(records[0].python_traced_peak_bytes, int)
+    assert (
+        records[0].process_resident_sampled_peak_bytes is None
+        or records[0].process_resident_sampled_peak_bytes > 0
+    )
     assert isinstance(records[0].to_dict(), dict)
+
+
+def test_process_memory_sampler_tracks_run_peak(monkeypatch):
+    """The process RSS sampler measures while a single benchmark run is active."""
+    calls = 0
+    sampled = threading.Event()
+
+    def rss_bytes():
+        nonlocal calls
+        calls += 1
+        if calls > 1:
+            sampled.set()
+        return calls * 1024
+
+    monkeypatch.setattr(capture_benchmark, "get_process_resident_bytes", rss_bytes)
+    sampler = capture_benchmark._ProcessResidentSampler()
+    sampler.start()
+    try:
+        assert sampled.wait(timeout=1)
+    finally:
+        peak_bytes = sampler.stop()
+
+    assert peak_bytes is not None
+    assert peak_bytes > 1024
+
+
+def test_benchmark_resets_and_records_per_run_accelerator_peak(monkeypatch):
+    """Accelerator peak stats are reset and recorded separately for each capture mode."""
+    _, MockLM, MockTokenizer = _get_mock_classes()
+    loaded = _make_loaded(MockLM(), MockTokenizer())
+    reset_devices = []
+    measured_devices = []
+
+    def reset_peak(device):
+        reset_devices.append(device)
+        return "cuda:0"
+
+    def measured_peak(device):
+        measured_devices.append(device)
+        return 4096
+
+    monkeypatch.setattr(capture_benchmark, "reset_accelerator_peak_memory", reset_peak)
+    monkeypatch.setattr(capture_benchmark, "get_accelerator_peak_allocated_bytes", measured_peak)
+
+    class MockBackend:
+        def ensure_loaded(self):
+            return loaded
+
+        def generate(self, question, settings):
+            return run_generation(loaded, question, settings)
+
+    records = run_capture_benchmark(
+        MockBackend(), "test", capture_modes=("none", "final"), max_new_tokens=1
+    )
+    assert reset_devices == ["cpu", "cpu"]
+    assert measured_devices == ["cuda:0", "cuda:0"]
+    assert [record.accelerator_peak_allocated_bytes for record in records] == [4096, 4096]
 
 
 def test_half_precision_transient_bytes_in_benchmark():

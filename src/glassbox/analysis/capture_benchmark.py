@@ -7,7 +7,8 @@ and measured process/accelerator peaks across capture modes.
 
 from __future__ import annotations
 
-import sys
+import os
+import threading
 import time
 import tracemalloc
 from dataclasses import asdict, dataclass
@@ -42,67 +43,77 @@ class BenchmarkRecord:
     retained_capture_bytes: int
     retained_cap_bytes: int
     python_traced_peak_bytes: int
-    process_resident_peak_bytes: int | None = None
+    process_resident_sampled_peak_bytes: int | None = None
     accelerator_peak_allocated_bytes: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
-def get_process_peak_resident_bytes() -> int | None:
-    """Return process peak resident set size (RSS) in bytes, if available."""
+def get_process_resident_bytes() -> int | None:
+    """Return current process RSS in bytes on systems exposing procfs."""
     try:
-        import resource
-
-        rusage = resource.getrusage(resource.RUSAGE_SELF)
-        scale = 1024 if sys.platform != "darwin" else 1
-        return int(rusage.ru_maxrss * scale)
-    except (ImportError, AttributeError):
-        pass
-    try:
-        import psutil
-
-        return int(psutil.Process().memory_info().rss)
-    except (ImportError, Exception):
-        pass
-    try:
-        import ctypes
-        from ctypes import wintypes
-
-        class PROCESS_MEMORY_COUNTERS(ctypes.Structure):
-            _fields_ = [
-                ("cb", wintypes.DWORD),
-                ("PageFaultCount", wintypes.DWORD),
-                ("PeakWorkingSetSize", ctypes.c_size_t),
-                ("WorkingSetSize", ctypes.c_size_t),
-                ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
-                ("QuotaPagedPoolUsage", ctypes.c_size_t),
-                ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
-                ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
-                ("PagefileUsage", ctypes.c_size_t),
-                ("PeakPagefileUsage", ctypes.c_size_t),
-            ]
-
-        counters = PROCESS_MEMORY_COUNTERS()
-        counters.cb = ctypes.sizeof(PROCESS_MEMORY_COUNTERS)
-        handle = ctypes.windll.kernel32.GetCurrentProcess()
-        if ctypes.windll.psapi.GetProcessMemoryInfo(handle, ctypes.byref(counters), counters.cb):
-            return int(counters.PeakWorkingSetSize)
-    except Exception:
-        pass
-    return None
+        with open("/proc/self/statm", encoding="ascii") as statm:
+            resident_pages = int(statm.read().split()[1])
+        return resident_pages * int(os.sysconf("SC_PAGE_SIZE"))
+    except (OSError, ValueError, IndexError, AttributeError):
+        return None
 
 
-def get_accelerator_peak_allocated_bytes() -> int | None:
-    """Return accelerator device peak allocated bytes via PyTorch if available."""
+class _ProcessResidentSampler:
+    """Sample process RSS during one run; brief peaks may fall between samples."""
+
+    def __init__(self) -> None:
+        self.peak_bytes = get_process_resident_bytes()
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._sample_until_stopped, daemon=True)
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def stop(self) -> int | None:
+        self._stop.set()
+        self._thread.join()
+        self._sample()
+        return self.peak_bytes
+
+    def _sample_until_stopped(self) -> None:
+        while not self._stop.wait(0.01):
+            self._sample()
+
+    def _sample(self) -> None:
+        current = get_process_resident_bytes()
+        if current is not None:
+            self.peak_bytes = max(self.peak_bytes or 0, current)
+
+
+def reset_accelerator_peak_memory(device: str | None) -> str | None:
+    """Reset PyTorch's allocated-memory high-water mark for a CUDA device."""
+    if not device or not device.startswith("cuda"):
+        return None
     try:
         import torch
 
-        if torch.cuda.is_available():
-            return int(torch.cuda.max_memory_allocated())
-    except (ImportError, Exception):
-        pass
-    return None
+    except ImportError:
+        return None
+    if not torch.cuda.is_available():
+        return None
+    torch.cuda.synchronize(device)
+    torch.cuda.reset_peak_memory_stats(device)
+    return device
+
+
+def get_accelerator_peak_allocated_bytes(device: str | None) -> int | None:
+    """Return allocated-byte high-water mark since reset for the given device."""
+    if device is None:
+        return None
+    try:
+        import torch
+
+    except ImportError:
+        return None
+    torch.cuda.synchronize(device)
+    return int(torch.cuda.max_memory_allocated(device))
 
 
 def run_capture_benchmark(
@@ -114,23 +125,28 @@ def run_capture_benchmark(
 ) -> list[BenchmarkRecord]:
     """Benchmark different capture modes to quantify analysis forward cost."""
     records: list[BenchmarkRecord] = []
-    backend.ensure_loaded()
+    loaded = backend.ensure_loaded()
+    device = getattr(loaded, "device", None)
 
     for mode in capture_modes:
-        tracemalloc.start()
-        start_mem = tracemalloc.get_traced_memory()[0]
-
         settings = GenerationSettings(
             max_new_tokens=max_new_tokens,
             capture_mode=mode,
         )
+        accelerator_device = reset_accelerator_peak_memory(device)
+        tracemalloc.start()
+        start_mem = tracemalloc.get_traced_memory()[0]
+        resident_sampler = _ProcessResidentSampler()
+        resident_sampler.start()
 
         started = time.perf_counter()
-        result: GenerationResult = backend.generate(question, settings)
-        total_latency = time.perf_counter() - started
-
-        _, peak_mem = tracemalloc.get_traced_memory()
-        tracemalloc.stop()
+        try:
+            result: GenerationResult = backend.generate(question, settings)
+            total_latency = time.perf_counter() - started
+        finally:
+            resident_peak_bytes = resident_sampler.stop()
+            _, peak_mem = tracemalloc.get_traced_memory()
+            tracemalloc.stop()
 
         selected_layers = list(result.token_spans.keys()) if result.token_spans else []
         hidden_count = result.hidden_state_count or 0
@@ -168,8 +184,10 @@ def run_capture_benchmark(
             retained_capture_bytes=result.capture_bytes,
             retained_cap_bytes=BYTE_LIMIT,
             python_traced_peak_bytes=peak_mem - start_mem,
-            process_resident_peak_bytes=get_process_peak_resident_bytes(),
-            accelerator_peak_allocated_bytes=get_accelerator_peak_allocated_bytes(),
+            process_resident_sampled_peak_bytes=resident_peak_bytes,
+            accelerator_peak_allocated_bytes=get_accelerator_peak_allocated_bytes(
+                accelerator_device
+            ),
         )
         records.append(record)
 
