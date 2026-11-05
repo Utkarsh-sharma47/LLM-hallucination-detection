@@ -212,7 +212,7 @@ class GlassBoxReport:
             lines.append("")
             lines.append(account.note)
 
-        if not self.turn.factual_risk_score:
+        if not account.compatible_generation_detector or self.turn.factual_risk_score is None:
             lines.append("")
             lines.append("HALLUCINATION PROBABILITY: NOT AVAILABLE")
 
@@ -252,7 +252,7 @@ class GlassBoxReport:
 
         lines = [
             f"Factuality status: {overall}",
-            f"Generation uncertainty: {'LOW' if self.generation.tokens and all(t.probability > 0.7 for t in self.generation.tokens) else 'MIXED'}",
+            "Generation uncertainty: NOT ASSESSED",
             f"Probe reliability: {'CALIBRATED' if account.compatible_generation_detector else 'EXPERIMENTAL' if self.probe else 'UNAVAILABLE'}",
             f"Evidence status: {'AVAILABLE' if catalog else 'UNAVAILABLE'}",
             "",
@@ -387,9 +387,7 @@ class GlassBoxReport:
 
         return {
             "factuality_status": claims.get("overall"),
-            "generation_uncertainty": "LOW"
-            if self.generation.tokens and all(t.probability > 0.7 for t in self.generation.tokens)
-            else "MIXED",
+            "generation_uncertainty": "NOT ASSESSED",
             "probe_reliability": "CALIBRATED"
             if account.compatible_generation_detector
             else "EXPERIMENTAL"

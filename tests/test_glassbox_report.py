@@ -1,6 +1,7 @@
 """Tests for Glass Box report generation."""
 
 import json
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -296,6 +297,39 @@ def test_probe_compatibility_messaging(sample_generation, sample_turn, tmp_path)
     # The probe section should show the experimental status
     assert "[07] PROBE ANALYSIS" in text
     assert "HALLUCINATION PROBABILITY: NOT AVAILABLE" in text
+
+
+def test_pair_probe_score_does_not_hide_unavailable_probability(
+    sample_generation, sample_turn, tmp_path
+):
+    sample_turn.factual_risk_score = 0.25
+    probe = SimpleNamespace(
+        metadata={"label_protocol": "halueval_qa_pair_v1"},
+        calibrated=True,
+    )
+    report = build_report(
+        question="Test",
+        generation=sample_generation,
+        turn=sample_turn,
+        probe=probe,
+        catalog_path=tmp_path / "missing.yaml",
+    )
+
+    assert "HALLUCINATION PROBABILITY: NOT AVAILABLE" in report._probe_section()
+
+
+def test_token_probabilities_do_not_produce_uncertainty_label(
+    sample_generation, sample_turn, tmp_path
+):
+    report = build_report(
+        question="Test",
+        generation=sample_generation,
+        turn=sample_turn,
+        catalog_path=tmp_path / "missing.yaml",
+    )
+
+    assert "Generation uncertainty: NOT ASSESSED" in report._conclusion_section()
+    assert report.to_json()["conclusion"]["generation_uncertainty"] == "NOT ASSESSED"
 
 
 def test_json_serialization_with_numpy(tmp_path):
