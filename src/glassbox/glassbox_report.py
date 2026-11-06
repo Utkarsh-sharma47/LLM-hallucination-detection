@@ -16,6 +16,7 @@ import numpy as np
 from glassbox.analysis.capture import representation_change
 from glassbox.analysis.claims import load_catalog, verify_answer
 from glassbox.analysis.protocol import account_probe
+from glassbox.analysis.retrieval import RetrievalClient, verify_answer_with_retrieval
 from glassbox.models.backend import GenerationResult
 from glassbox.probes.store import LoadedProbe
 from glassbox.reporting import TurnRecord
@@ -33,6 +34,7 @@ class GlassBoxReport:
     turn: TurnRecord
     probe: LoadedProbe | None
     catalog_path: Path | None
+    retrieval_client: RetrievalClient | None = None
 
     def to_text(self) -> str:
         """Return the 10-section terminal report."""
@@ -143,23 +145,43 @@ class GlassBoxReport:
 
     def _factuality_section(self) -> str:
         catalog = load_catalog(self.catalog_path)
-        claims = verify_answer(self.answer, catalog)
+        if self.retrieval_client is not None:
+            claims = verify_answer_with_retrieval(
+                self.answer, catalog, retrieval_client=self.retrieval_client
+            )
+        else:
+            claims = verify_answer(self.answer, catalog)
 
         counts = claims.get("counts", {})
         overall = claims.get("overall", "UNVALIDATED")
         note = claims.get("note", "")
+        evidence_source = claims.get("evidence_source", "none")
 
         lines = [
             f"Overall status: {overall}",
+            f"Evidence source: {evidence_source}",
             f"Number of claims: {claims.get('claim_count', 0)}",
             f"Verified claims: {counts.get('FAITHFUL', 0)}",
             f"Hallucinated claims: {counts.get('HALLUCINATED', 0)}",
             f"Ambiguous claims: {counts.get('AMBIGUOUS', 0)}",
             f"Unvalidated claims: {counts.get('UNVALIDATED', 0)}",
-            f"Reference: {self.catalog_path or 'NOT AVAILABLE'}",
-            "",
-            note,
         ]
+        if self.retrieval_client is not None:
+            lines.extend(
+                [
+                    f"Supported (retrieval): {counts.get('SUPPORTED', 0)}",
+                    f"Contradicted (retrieval): {counts.get('CONTRADICTED', 0)}",
+                    f"Conflicting (retrieval): {counts.get('CONFLICTING', 0)}",
+                    f"Unverified (retrieval): {counts.get('UNVERIFIED', 0)}",
+                ]
+            )
+        lines.extend(
+            [
+                f"Reference: {self.catalog_path or 'NOT AVAILABLE'}",
+                "",
+                note,
+            ]
+        )
 
         # Show individual claims
         claim_list = claims.get("claims", [])
@@ -271,16 +293,31 @@ class GlassBoxReport:
 
     def _conclusion_section(self) -> str:
         catalog = load_catalog(self.catalog_path)
-        claims = verify_answer(self.answer, catalog)
+        if self.retrieval_client is not None:
+            claims = verify_answer_with_retrieval(
+                self.answer, catalog, retrieval_client=self.retrieval_client
+            )
+        else:
+            claims = verify_answer(self.answer, catalog)
         overall = claims.get("overall", "UNVALIDATED")
 
         account = account_probe(self.probe)
+
+        evidence_status = (
+            "RETRIEVAL+AUDITED"
+            if self.retrieval_client is not None and catalog
+            else "RETRIEVAL"
+            if self.retrieval_client is not None
+            else "AVAILABLE"
+            if catalog
+            else "UNAVAILABLE"
+        )
 
         lines = [
             f"Factuality status: {overall}",
             f"Generation uncertainty: {'LOW' if self.generation.tokens and all(t.probability > 0.7 for t in self.generation.tokens) else 'MIXED'}",
             f"Probe reliability: {'CALIBRATED' if account.compatible_generation_detector else 'EXPERIMENTAL' if self.probe else 'UNAVAILABLE'}",
-            f"Evidence status: {'AVAILABLE' if catalog else 'UNAVAILABLE'}",
+            f"Evidence status: {evidence_status}",
             "",
             "Main limitations:",
             "  - Token probabilities are generation confidence, not factuality confidence",
@@ -386,13 +423,20 @@ class GlassBoxReport:
 
     def _factuality_json(self) -> dict[str, Any]:
         catalog = load_catalog(self.catalog_path)
-        claims = verify_answer(self.answer, catalog)
+        if self.retrieval_client is not None:
+            claims = verify_answer_with_retrieval(
+                self.answer, catalog, retrieval_client=self.retrieval_client
+            )
+        else:
+            claims = verify_answer(self.answer, catalog)
         return {
             "catalog_available": bool(catalog),
             "catalog_path": str(self.catalog_path) if self.catalog_path else None,
+            "retrieval_enabled": self.retrieval_client is not None,
             "overall_status": claims.get("overall"),
             "claim_count": claims.get("claim_count"),
             "counts": claims.get("counts"),
+            "evidence_source": claims.get("evidence_source"),
             "claims": claims.get("claims"),
         }
 
@@ -441,6 +485,7 @@ def build_report(
     turn: TurnRecord,
     probe: LoadedProbe | None = None,
     catalog_path: Path | None = None,
+    retrieval_client: RetrievalClient | None = None,
 ) -> GlassBoxReport:
     """Build a Glass Box report from generation results."""
     return GlassBoxReport(
@@ -450,4 +495,5 @@ def build_report(
         turn=turn,
         probe=probe,
         catalog_path=catalog_path,
+        retrieval_client=retrieval_client,
     )

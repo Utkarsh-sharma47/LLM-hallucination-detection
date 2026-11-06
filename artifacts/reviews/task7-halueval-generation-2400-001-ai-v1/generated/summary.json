@@ -1,0 +1,48 @@
+{
+  "run_id": "task7-halueval-generation-2400-001",
+  "policy_version": "ai_passage_review_v1",
+  "reviewed": 2400,
+  "remaining": 0,
+  "label_counts": {
+    "HALLUCINATED": 1073,
+    "UNVALIDATED": 1090,
+    "FAITHFUL": 198,
+    "AMBIGUOUS": 39
+  },
+  "split_label_counts": {
+    "train": {
+      "FAITHFUL": 125,
+      "HALLUCINATED": 695,
+      "AMBIGUOUS": 23,
+      "UNVALIDATED": 597
+    },
+    "validation": {
+      "FAITHFUL": 44,
+      "HALLUCINATED": 219,
+      "AMBIGUOUS": 9,
+      "UNVALIDATED": 208
+    },
+    "test": {
+      "FAITHFUL": 29,
+      "HALLUCINATED": 159,
+      "AMBIGUOUS": 7,
+      "UNVALIDATED": 285
+    }
+  },
+  "binary_candidate_counts": {
+    "train": 820,
+    "validation": 263,
+    "test": 188
+  },
+  "excluded_from_binary": 1129,
+  "reviewer_type": "AI",
+  "independent_human_reviews": 0,
+  "inter_rater_agreement": null,
+  "adjudicated": false,
+  "consistency_audit_completed": false,
+  "probe_retrained": false,
+  "source_sha256": "b8b793698630df4eb6376bcd72701847e10a03079e0603935421d6fb6bae251b",
+  "annotation_sha256": "1519df998f01838a9055b9a34f1d8f4b07663c84459f27ed097128c21ae1b79a",
+  "group_split_isolation": true,
+  "normalized_passage_split_isolation": true
+}

@@ -14,6 +14,11 @@ from pathlib import Path
 
 from rich.console import Console
 
+from glassbox.analysis.retrieval import (
+    RetrievalClient,
+    load_fixture_client,
+    load_retrieval_config,
+)
 from glassbox.config import repo_root
 from glassbox.demo_config import default_probe_dir, load_demo_config
 from glassbox.glassbox_report import GlassBoxReport, build_report
@@ -107,6 +112,25 @@ def main(argv: list[str] | None = None) -> int:
         "--auto-html",
         action="store_true",
         help="Open the HTML report after every answer. Otherwise press h at the menu.",
+    )
+    parser.add_argument(
+        "--retrieval",
+        action="store_true",
+        help="Enable independent evidence retrieval for claims outside the curated catalog.",
+    )
+    parser.add_argument(
+        "--retrieval-config",
+        type=Path,
+        default=None,
+        dest="retrieval_config_path",
+        help="Path to retrieval source configuration YAML. Defaults to configs/retrieval_sources.yaml.",
+    )
+    parser.add_argument(
+        "--retrieval-fixtures",
+        type=Path,
+        default=None,
+        dest="retrieval_fixtures_path",
+        help="Path to retrieval fixture YAML for deterministic testing without network access.",
     )
     commands = parser.add_subparsers(dest="command")
     train = commands.add_parser(
@@ -406,6 +430,34 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, ValueError, FileNotFoundError) as exc:
         print(f"Glass Box could not start: {exc}", file=sys.stderr)
         return 1
+
+    # --- Build optional retrieval client ---
+    retrieval_client: RetrievalClient | None = None
+    if args.retrieval:
+        if args.retrieval_fixtures_path is not None:
+            retrieval_client = load_fixture_client(args.retrieval_fixtures_path)
+        else:
+            retrieval_config_path = (
+                args.retrieval_config_path or repo_root() / "configs" / "retrieval_sources.yaml"
+            )
+            retrieval_cfg = load_retrieval_config(retrieval_config_path)
+            if not retrieval_cfg.enabled:
+                print(
+                    "Retrieval is not enabled in the config. "
+                    "Set retrieval_enabled: true or use --retrieval-fixtures.",
+                    file=sys.stderr,
+                )
+                return 2
+            # When no fixtures are provided and config has sources, use the
+            # fixture client as the only implemented client for now.
+            # Real Wikipedia / HaluEval clients are library-only foundations.
+            print(
+                "Note: --retrieval without --retrieval-fixtures uses the fixture client. "
+                "Real source clients (Wikipedia, HaluEval) are not yet wired.",
+                file=sys.stderr,
+            )
+            retrieval_client = None
+    # --- end retrieval client ---
     if args.analyze_text:
         if args.output_json is not None:
             print("--output-json is only supported for generated reports.", file=sys.stderr)
@@ -450,14 +502,14 @@ def main(argv: list[str] | None = None) -> int:
         print("Pass --question with --once.", file=sys.stderr)
         return 2
     if args.demo:
-        return _run_demo(session, console, detector, args.output_json)
+        return _run_demo(session, console, detector, args.output_json, retrieval_client)
     if args.question:
-        code = _run_question(session, args.question, console, args.output_json)
+        code = _run_question(session, args.question, console, args.output_json, retrieval_client)
         if code != 0 or args.once:
             return code
         if not _menu(session):
             return 0
-    return _interactive(session, console)
+    return _interactive(session, console, retrieval_client)
 
 
 def app() -> None:
@@ -466,17 +518,23 @@ def app() -> None:
 
 
 def _run_demo(
-    session: DemoSession, console: Console, detector: str, output_json: Path | None = None
+    session: DemoSession,
+    console: Console,
+    detector: str,
+    output_json: Path | None = None,
+    retrieval_client: RetrievalClient | None = None,
 ) -> int:
     collected = []
     for question in DEMO_QUESTIONS:
-        code = _run_question(session, question, console)
+        code = _run_question(session, question, console, None, retrieval_client)
         if code != 0:
             return code
         collected.append(session.turns[-1])
     render_epilogue(console, collected, detector)
     if output_json is not None:
-        reports = [_report_for_turn(turn, session.probe).to_json() for turn in collected]
+        reports = [
+            _report_for_turn(turn, session.probe, retrieval_client).to_json() for turn in collected
+        ]
         if not _write_json_export(output_json, reports, console):
             return 1
     return 0
@@ -512,7 +570,11 @@ def _analyze_text(
 
 
 def _run_question(
-    session: DemoSession, question: str, console: Console, output_json: Path | None = None
+    session: DemoSession,
+    question: str,
+    console: Console,
+    output_json: Path | None = None,
+    retrieval_client: RetrievalClient | None = None,
 ) -> int:
     view = LiveTokenView(console, session.settings.max_new_tokens) if console.is_terminal else None
     try:
@@ -526,7 +588,7 @@ def _run_question(
         print(f"Generation failed: {exc}", file=sys.stderr)
         return 1
 
-    report = _report_for_turn(turn, session.probe)
+    report = _report_for_turn(turn, session.probe, retrieval_client)
     console.print(report.to_text())
     if _html_enabled:
         message = _open_html_report(report, repo_root() / "artifacts" / "runtime" / "reports")
@@ -538,13 +600,16 @@ def _run_question(
     return 0
 
 
-def _report_for_turn(turn: TurnRecord, probe: LoadedProbe | None) -> GlassBoxReport:
+def _report_for_turn(
+    turn: TurnRecord, probe: LoadedProbe | None, retrieval_client: RetrievalClient | None = None
+) -> GlassBoxReport:
     return build_report(
         question=turn.generation.question,
         generation=turn.generation,
         turn=turn,
         probe=probe,
         catalog_path=repo_root() / "configs" / "claim_references.yaml",
+        retrieval_client=retrieval_client,
     )
 
 
@@ -585,7 +650,9 @@ COMMAND_LEGEND = (
 )
 
 
-def _interactive(session: DemoSession, console: Console) -> int:
+def _interactive(
+    session: DemoSession, console: Console, retrieval_client: RetrievalClient | None = None
+) -> int:
     """Ask questions until a blank line or quit. Previous turns stay in the session."""
     console.print(
         "[dim]Ask any question. It does not need a curated reference. A blank line quits.[/dim]"
@@ -598,7 +665,7 @@ def _interactive(session: DemoSession, console: Console) -> int:
             return 0
         if not question:
             return 0
-        code = _run_question(session, question, console)
+        code = _run_question(session, question, console, None, retrieval_client)
         if code != 0:
             return code
         if not _menu(session):

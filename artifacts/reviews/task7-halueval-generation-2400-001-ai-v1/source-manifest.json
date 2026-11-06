@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "run_id": "task7-halueval-generation-2400-001",
+  "policy_version": "ai_passage_review_v1",
+  "reviewer_type": "AI",
+  "human_reviewed": false,
+  "source_files": {
+    "predictions.json": {
+      "sha256": "b8b793698630df4eb6376bcd72701847e10a03079e0603935421d6fb6bae251b",
+      "bytes": 8416360
+    },
+    "features.npz": {
+      "sha256": "5f4b0c6e03914a1bc210bbbb75481a5f18c6d17c063e1f53a6a299b0c9a3eb04",
+      "bytes": 4101884
+    },
+    "splits.json": {
+      "sha256": "ae74e5677a1d8b86c1e05cc79a5fc1ebf26e7916470c128bf47970b009258f05",
+      "bytes": 276540
+    },
+    "record.json": {
+      "sha256": "9178ea733d5b8b545742b168894eae6aa4a9e5ad512e90b7fb966a0fa767d707",
+      "bytes": 1101
+    },
+    "report.json": {
+      "sha256": "b6ebf745b5afcc4b7793491aeca1ed73e4f6f6efff891f1c454e9c7c5516458b",
+      "bytes": 76055
+    }
+  },
+  "annotation_sha256": "1519df998f01838a9055b9a34f1d8f4b07663c84459f27ed097128c21ae1b79a",
+  "original_run_provenance": {
+    "config": {
+      "calibration": {
+        "calibration_validated": false,
+        "reason": "The generation probe stays uncalibrated. Pair-protocol Platt scaling is stored as generation_probe_platt and cannot accept this run. Issue #18 is the only path that may describe a pair-probe score as a calibrated probability.",
+        "status": "rejected",
+        "test_ece": 0.11417924706938863
+      },
+      "protocol": "halueval_generation_evidence_v1",
+      "publishable_as_reproducible": false,
+      "threshold": 0.05,
+      "worktree_dirty": true
+    },
+    "git_commit": "1efec914a462b00c4491ace549ab21eb7e352cba",
+    "metrics": {
+      "auprc": 0.5407743950611276,
+      "auroc": 0.5220779220779221,
+      "early_warning_lead": null,
+      "f1": 0.5897435897435898,
+      "false_positive_rate": 0.6285714285714286,
+      "precision": 0.5111111111111111,
+      "recall": 0.696969696969697
+    },
+    "notes": "Generation-task probe on Qwen answers. Reproducible publication=False. Pair-protocol metrics are a different experiment.",
+    "run_id": "task7-halueval-generation-2400-001",
+    "schema_version": 1
+  }
+}
