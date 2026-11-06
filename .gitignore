@@ -31,3 +31,4 @@ hf_cache/
 
 # Trained probe weights are shared on purpose (small, ~25 KB).
 !artifacts/probes/**/*.joblib
+artifacts/**
