@@ -1,0 +1,152 @@
+{
+  "calibration_validated": false,
+  "class_counts": {
+    "faithful": 26,
+    "hallucinated": 26
+  },
+  "faithful_score_length_correlation": {
+    "n": 26,
+    "note": null,
+    "r": 0.8939554406664576
+  },
+  "formats": {
+    "sentence_faithful": {
+      "false_positive_rate": 0.8461538461538461,
+      "mean_characters": 20.23076923076923,
+      "mean_score": 0.8450676103829731,
+      "n": 13,
+      "predicted_hallucinated": 11
+    },
+    "sentence_hallucinated": {
+      "false_positive_rate": null,
+      "mean_characters": 21.307692307692307,
+      "mean_score": 0.8721822290008265,
+      "n": 13,
+      "predicted_hallucinated": 12
+    },
+    "short_faithful": {
+      "false_positive_rate": 0.0,
+      "mean_characters": 5.230769230769231,
+      "mean_score": 0.039629771939931446,
+      "n": 13,
+      "predicted_hallucinated": 0
+    },
+    "short_hallucinated": {
+      "false_positive_rate": null,
+      "mean_characters": 6.3076923076923075,
+      "mean_score": 0.10352433186625819,
+      "n": 13,
+      "predicted_hallucinated": 1
+    }
+  },
+  "includes_training_rows": false,
+  "interpretation": {
+    "learns": "superficial_answer_patterns",
+    "length_matched_auroc_drop": 0.06571540105193946,
+    "reason": "Probe scores track answer format or length more than the factuality label. Sentence-form faithful answers are flagged more often than short faithful answers, or score correlates with length among faithful rows. This is not evidence that the probe reads factual correctness.",
+    "sentence_minus_short_faithful_fpr": 0.8461538461538461,
+    "successful_detector": false
+  },
+  "length_by_class": {
+    "faithful": {
+      "mean_characters": 12.73076923076923,
+      "mean_score": 0.44234869116145226,
+      "n": 26
+    },
+    "hallucinated": {
+      "mean_characters": 13.807692307692308,
+      "mean_score": 0.48785328043354237,
+      "n": 26
+    }
+  },
+  "length_matched": {
+    "class_counts": {
+      "faithful": 24,
+      "hallucinated": 24
+    },
+    "metrics": {
+      "class_counts": {
+        "faithful": 24,
+        "hallucinated": 24
+      },
+      "confusion": {
+        "fn": 13,
+        "fp": 11,
+        "tn": 13,
+        "tp": 11
+      },
+      "inconclusive": false,
+      "interval": {
+        "groups": 13,
+        "high": 0.5264,
+        "low": 0.31402147635913863,
+        "metric": "auroc",
+        "n": 48,
+        "note": "Percentile interval from resampling question groups with replacement. Rows from the same group stay together. It does not transfer to another dataset.",
+        "point": 0.4357638888888889,
+        "resamples_used": 1000,
+        "unit": "question_group"
+      },
+      "metrics": {
+        "auprc": 0.5112402420705304,
+        "auroc": 0.4357638888888889,
+        "f1": 0.4782608695652174,
+        "false_positive_rate": 0.4583333333333333,
+        "precision": 0.5,
+        "recall": 0.4583333333333333
+      },
+      "n": 48,
+      "note": "Both classes meet the interval minimum on this slice."
+    },
+    "n": 48,
+    "tolerance_characters": 15
+  },
+  "n": 52,
+  "overall": {
+    "class_counts": {
+      "faithful": 26,
+      "hallucinated": 26
+    },
+    "confusion": {
+      "fn": 13,
+      "fp": 11,
+      "tn": 15,
+      "tp": 13
+    },
+    "inconclusive": false,
+    "interval": {
+      "groups": 13,
+      "high": 0.5606508875739645,
+      "low": 0.4378328402366864,
+      "metric": "auroc",
+      "n": 52,
+      "note": "Percentile interval from resampling question groups with replacement. Rows from the same group stay together. It does not transfer to another dataset.",
+      "point": 0.5014792899408284,
+      "resamples_used": 1000,
+      "unit": "question_group"
+    },
+    "metrics": {
+      "auprc": 0.5644528634041742,
+      "auroc": 0.5014792899408284,
+      "f1": 0.52,
+      "false_positive_rate": 0.4230769230769231,
+      "precision": 0.5416666666666666,
+      "recall": 0.5
+    },
+    "n": 52,
+    "note": "Both classes meet the interval minimum on this slice."
+  },
+  "pair_probe_directory": "C:\\Users\\HP\\OneDrive\\Documents\\sem5\\tai lab\\project\\LLM-hallucination-detection\\artifacts\\probes\\final-hidden-state",
+  "pair_probe_rewritten": false,
+  "score_length_correlation": {
+    "n": 52,
+    "note": null,
+    "r": 0.7914917815730544
+  },
+  "source": "controlled_completions",
+  "splits_present": [],
+  "successful_detector": false,
+  "threshold": 0.65,
+  "threshold_was_fit_on_these_rows": false,
+  "ui_semantics": "EXPERIMENTAL PROBE SCORE; RISK NOT ASSESSED"
+}

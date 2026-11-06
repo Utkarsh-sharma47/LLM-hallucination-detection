@@ -211,6 +211,18 @@ python -m glassbox --offline train-generation-probe \
 
 The command refuses an existing run directory and refuses `final-hidden-state`. Do not rerun `halueval-generation-001` against the already-seen test split.
 
+## Fresh generation-protocol run `task7-halueval-generation-2400-001`
+
+This run was generated from a new seed-0 knowledge-group split because the historical generation-001 predictions and expansion plan were not present in this checkout. It generated 2,400 HaluEval answers plus a separate 40-question TruthfulQA external slice. The HaluEval split was frozen before generation: 1,440 train, 480 validation, and 480 test questions. The model was `Qwen/Qwen2.5-0.5B-Instruct`, revision `7ae557604adf67be50417f59c2c2f167def9a775`, bfloat16, greedy, 32 new pieces. The probe used the last generated piece at layer 24 (width 896). The live pair probe was not rewritten.
+
+The evidence policy was `halueval_generation_evidence_v1`. It labels a generation faithful only when the passage grounds the benchmark right answer and the answer asserts it; hallucinated only when the same passage grounds that answer and the generation asserts a contradicted substitute from the benchmark false answer; both claims are ambiguous; and all unmatched or ungrounded cases remain unvalidated. Of the 2,400 answers, 1,956 were unvalidated and 62 ambiguous. Binary counts were train 136 faithful / 103 hallucinated, validation 47 / 28, and test 35 / 33. Thus each split passed the minimum 20-per-class count, but this minimum alone does not establish a detector.
+
+The validation-selected threshold was 0.05. On 68 binary-labeled test answers, hidden-state AUROC was 0.522 (group bootstrap 95% interval 0.388–0.667), F1 0.590, and ECE 0.114. Answer-length AUROC was 0.495; answer-text TF-IDF was 0.735 (interval 0.616–0.844); right-answer dissimilarity was 0.938; and false-span similarity was 1.000. The hidden-state result is near chance and below TF-IDF. The probe was saved as an experimental generation probe, but `successful_detector` is false and calibration was rejected. The UI semantics remain `EXPERIMENTAL PROBE SCORE` and `RISK NOT ASSESSED`.
+
+The external TruthfulQA slice had 3 faithful, 3 hallucinated, and 34 unvalidated answers. Its six labeled rows are too few for an interval and were not used for training, threshold selection, or calibration. The run provenance records commit `1efec914a462b00c4491ace549ab21eb7e352cba` but marks the worktree dirty, so it is not a clean-checkout reproduction. The pair-probe calibration gate also rejected the current pair artifact because its saved threshold is 0.95 rather than the frozen 0.65; that does not change the generation probe's own rejected calibration result.
+
+Artifacts (gitignored): `artifacts/experiments/task7-halueval-generation-2400-001/` and `artifacts/probes/generation-runs/task7-halueval-generation-2400-001/`.
+
 ## Length and format diagnostic
 
 The live pair probe was scored on 52 **supplied** completions: 13 curated questions, each with a short faithful answer, a sentence-form faithful answer, a short false answer, and a sentence-form false answer. Hidden states were read with `completion_hidden_states`. The threshold stayed 0.65. Pair-probe metadata was not rewritten.

@@ -13,6 +13,7 @@ from glassbox.activations.extract import (
     describe_generated_position,
     feature_index,
     mean_answer_vector,
+    vectors_at_generated_positions,
     vectors_at_position,
 )
 from glassbox.cli import main
@@ -46,6 +47,60 @@ from glassbox.probes.generation_train import (
 from glassbox.probes.preprocess import apply_standard_scaler
 from glassbox.probes.store import experimental_score, load_probe
 from glassbox.verification import assess_answer, load_curated_facts
+
+
+def test_multiple_generated_positions_are_extracted_without_qwen() -> None:
+    hidden = torch.zeros(1, 6, 2)
+    hidden[0, 3] = torch.tensor([1.0, 2.0])
+    hidden[0, 4] = torch.tensor([3.0, 4.0])
+    hidden[0, 5] = torch.tensor([5.0, 6.0])
+
+    vectors = vectors_at_generated_positions(
+        (hidden,),
+        prompt_tokens=3,
+        answer_tokens=3,
+        layers=(0,),
+    )
+
+    assert vectors[0].shape == (3, 2)
+    assert vectors[0].tolist() == [
+        [1.0, 2.0],
+        [3.0, 4.0],
+        [5.0, 6.0],
+    ]
+
+
+@pytest.mark.parametrize(
+    ("prompt_tokens", "answer_tokens"),
+    [
+        (True, 3),
+        (3.0, 3),
+        ("3", 3),
+        (None, 3),
+        (0, 3),
+        (-1, 3),
+        (3, True),
+        (3, 2.0),
+        (3, "2"),
+        (3, None),
+        (3, 1),
+        (3, 0),
+        (3, -1),
+    ],
+)
+def test_generated_position_extraction_rejects_invalid_token_counts(
+    prompt_tokens: object,
+    answer_tokens: object,
+) -> None:
+    hidden = torch.zeros(1, 6, 2)
+
+    with pytest.raises(ValueError):
+        vectors_at_generated_positions(
+            (hidden,),
+            prompt_tokens=prompt_tokens,
+            answer_tokens=answer_tokens,
+            layers=(0,),
+        )
 
 
 def test_generated_piece_is_not_the_prompt_piece() -> None:

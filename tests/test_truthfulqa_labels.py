@@ -71,7 +71,7 @@ def test_second_lock_is_refused(monkeypatch: pytest.MonkeyPatch, tmp_path: Path)
     def blocked(*_args, **_kwargs):
         raise BlockingIOError
 
-    monkeypatch.setattr("glassbox.models.backend.fcntl.flock", blocked)
+    monkeypatch.setattr("glassbox.models.backend._try_lock", blocked)
     with pytest.raises(RuntimeError, match="already has Qwen loaded"):
         acquire_model_lock(tmp_path / "qwen.lock")
 
@@ -216,3 +216,13 @@ def test_audit_reports_disagreements_without_rewriting_source_metrics(
     assert json.loads(report_path.read_text(encoding="utf-8")) == source
     assert report_path.read_text(encoding="utf-8") == before
     assert "auroc" not in json.dumps(payload["note"])
+
+
+def test_second_real_lock_is_refused(tmp_path: Path) -> None:
+    path = tmp_path / "qwen.lock"
+    first = acquire_model_lock(path)
+    try:
+        with pytest.raises(RuntimeError, match="already has Qwen loaded"):
+            acquire_model_lock(path)
+    finally:
+        first.close()

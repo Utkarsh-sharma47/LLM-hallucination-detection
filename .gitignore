@@ -10,8 +10,11 @@ __pycache__/
 *.egg-info/
 dist/
 build/
-artifacts/**
-!artifacts/.gitkeep
+# Shared with the team: dataset and trained probes.
+# Per-machine and scratch outputs stay local.
+artifacts/runtime/
+artifacts/experiments/test-*/
+artifacts/**/*.lock
 /outputs/
 /models/
 *.safetensors
@@ -25,3 +28,6 @@ artifacts/**
 hf_cache/
 .huggingface/
 *.log
+
+# Trained probe weights are shared on purpose (small, ~25 KB).
+!artifacts/probes/**/*.joblib

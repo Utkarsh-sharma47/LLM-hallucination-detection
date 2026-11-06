@@ -196,3 +196,31 @@ def test_session_export_writes_json_and_markdown(tmp_path):
     assert "JSON report:" in message
     assert "Markdown report:" in message
     assert "less" in message
+
+
+def test_html_command_writes_and_opens_the_page(monkeypatch, tmp_path, capsys):
+    _install_backend(monkeypatch)
+    opened = []
+    real_write = __import__("glassbox.cli", fromlist=["write_turn_html"]).write_turn_html
+    monkeypatch.setattr(
+        "glassbox.cli.write_turn_html", lambda payload, _directory: real_write(payload, tmp_path)
+    )
+    monkeypatch.setattr("glassbox.cli.open_in_browser", lambda path: opened.append(path) or True)
+    answers = iter(["Who wrote The Odyssey?", "h", "q"])
+    monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
+    assert main([]) == 0
+    output = capsys.readouterr().out
+    assert "h = open this answer as an HTML report" in output
+    assert "HTML report opened:" in output
+    assert len(opened) == 1
+    assert "Who wrote The Odyssey?" in opened[0].read_text(encoding="utf-8")
+
+
+def test_html_page_is_not_opened_without_h(monkeypatch):
+    _install_backend(monkeypatch)
+    opened = []
+    monkeypatch.setattr("glassbox.cli.open_in_browser", lambda path: opened.append(path) or True)
+    answers = iter(["Who wrote The Odyssey?", "q"])
+    monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
+    assert main([]) == 0
+    assert opened == []

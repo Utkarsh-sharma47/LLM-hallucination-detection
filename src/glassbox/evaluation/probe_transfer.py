@@ -16,7 +16,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import math
-import resource
 import subprocess
 import sys
 from collections.abc import Mapping, Sequence
@@ -53,6 +52,7 @@ from glassbox.evaluation.metrics import (
     compute_binary_metrics,
 )
 from glassbox.evaluation.records import write_json
+from glassbox.models.resources import peak_rss_kb
 from glassbox.probes.scoring import confusion_counts, expected_calibration_error, overlap_score
 from glassbox.probes.store import (
     ProbeCompatibilityError,
@@ -601,7 +601,7 @@ def _transfer_command(args: argparse.Namespace) -> int:
         generation_settings=settings,
         probe_metadata_sha256=metadata_sha,
     )
-    peak_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    peak_kb = peak_rss_kb()
     print(f"Wrote {run_dir}")
     print(f"Peak RSS: {peak_kb / 1024:.0f} MiB")
     print(format_summary(metrics))

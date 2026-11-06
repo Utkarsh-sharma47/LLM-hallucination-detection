@@ -380,6 +380,8 @@ class GlassBoxReport:
             "threshold": self.turn.probe_threshold,
             "calibration_status": self.turn.calibration_status,
             "note": account.note,
+            "status": self.turn.probe_status,
+            "score_note": self.turn.score_note,
         }
 
     def _factuality_json(self) -> dict[str, Any]:

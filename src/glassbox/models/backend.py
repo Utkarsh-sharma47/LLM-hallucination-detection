@@ -54,6 +54,19 @@ POSITIONS = ("last_prompt_token", "last_generated_token")
 _COMMIT_HASH = re.compile(r"[0-9a-f]{40}")
 
 
+def _try_lock(handle) -> None:
+    """Non-blocking exclusive lock that works on both POSIX and Windows."""
+    if os.name == "nt":
+        import msvcrt
+
+        handle.seek(0)
+        msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+    else:
+        import fcntl
+
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+
 def acquire_model_lock(path: Path | None = None):
     """Hold an exclusive lock for as long as this process keeps the model.
 
@@ -63,24 +76,14 @@ def acquire_model_lock(path: Path | None = None):
     destination = path or _default_lock_path()
     destination.parent.mkdir(parents=True, exist_ok=True)
     handle = destination.open("a+")
-    if fcntl is not None:
-        try:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except (BlockingIOError, OSError) as exc:
-            handle.close()
-            raise RuntimeError(
-                "Another Glass Box process already has Qwen loaded. "
-                "Quit that session before training or starting a second one."
-            ) from exc
-    elif msvcrt is not None:
-        try:
-            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
-        except (BlockingIOError, OSError) as exc:
-            handle.close()
-            raise RuntimeError(
-                "Another Glass Box process already has Qwen loaded. "
-                "Quit that session before training or starting a second one."
-            ) from exc
+    try:
+        _try_lock(handle)
+    except OSError as exc:
+        handle.close()
+        raise RuntimeError(
+            "Another Glass Box process already has Qwen loaded. "
+            "Quit that session before training or starting a second one."
+        ) from exc
     handle.seek(0)
     handle.truncate()
     handle.write(f"{os.getpid()}\n")

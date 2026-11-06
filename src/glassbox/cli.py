@@ -38,6 +38,7 @@ from glassbox.reporting import (
     format_token_view,
     format_verification_view,
 )
+from glassbox.reports.turn_html import open_in_browser, write_turn_html
 from glassbox.session import DemoSession
 from glassbox.verification import (
     assess_answer,
@@ -46,9 +47,13 @@ from glassbox.verification import (
     reference_for_question,
 )
 
+# Set in main(): with --auto-html, open each answer as an HTML page in a real terminal.
+_html_enabled = False
+
 
 def main(argv: list[str] | None = None) -> int:
     """Launch the terminal demo."""
+    global _html_enabled
     parser = argparse.ArgumentParser(prog="glassbox")
     parser.add_argument(
         "--config", type=Path, default=None, help="Demo YAML. Defaults to configs/demo.yaml."
@@ -97,6 +102,11 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         default=None,
         help="Export the report as JSON; --demo writes an array of reports.",
+    )
+    parser.add_argument(
+        "--auto-html",
+        action="store_true",
+        help="Open the HTML report after every answer. Otherwise press h at the menu.",
     )
     commands = parser.add_subparsers(dest="command")
     train = commands.add_parser(
@@ -382,6 +392,7 @@ def main(argv: list[str] | None = None) -> int:
 
         return view_command(args)
     console = make_console()
+    _html_enabled = console.is_terminal and args.auto_html
     if args.samples:
         render_samples(console)
         return 0
@@ -419,7 +430,7 @@ def main(argv: list[str] | None = None) -> int:
     if probe is None:
         detector = PROBE_NOT_TRAINED
         detail = f"{config.selection_reason} No saved probe was loaded. No prediction was invented."
-    elif probe.calibrated:
+    elif probe.calibrated and _is_generation_detector(probe):
         detector = "calibrated probe loaded"
         detail = config.selection_reason
     else:
@@ -517,6 +528,9 @@ def _run_question(
 
     report = _report_for_turn(turn, session.probe)
     console.print(report.to_text())
+    if _html_enabled:
+        message = _open_html_report(report, repo_root() / "artifacts" / "runtime" / "reports")
+        console.print(message, style="dim", markup=False)
 
     if output_json is not None and not _write_json_export(output_json, report.to_json(), console):
         return 1
@@ -532,6 +546,17 @@ def _report_for_turn(turn: TurnRecord, probe: LoadedProbe | None) -> GlassBoxRep
         probe=probe,
         catalog_path=repo_root() / "configs" / "claim_references.yaml",
     )
+
+
+def _open_html_report(report: GlassBoxReport, directory: Path) -> str:
+    """Write the turn as an HTML page, open it, and return a one-line status."""
+    try:
+        path = write_turn_html(report.to_json(), directory)
+    except OSError as exc:
+        return f"HTML report failed: {exc}"
+    if open_in_browser(path):
+        return f"HTML report opened: {path}"
+    return f"HTML report saved (no browser found): {path}"
 
 
 def _write_json_export(path: Path, payload: object, console: Console) -> bool:
@@ -554,6 +579,7 @@ COMMAND_LEGEND = (
     "v = reference verification — external curated check, separate from the probe\n"
     "d = diagnostics — model, prompt length, latency, and hidden-state shape\n"
     "e = export report — write JSON, Markdown, and the distribution table\n"
+    "h = open this answer as an HTML report in the browser\n"
     "q = quit\n"
     "A blank line quits.\n"
 )
@@ -584,7 +610,7 @@ def _menu(session: DemoSession) -> bool:
     print(COMMAND_LEGEND, end="")
     while True:
         try:
-            command = input("glassbox [n/r/t/p/v/d/e/q]> ").strip().lower()
+            command = input("glassbox [n/r/t/p/v/d/e/h/q]> ").strip().lower()
         except EOFError:
             print()
             return False
@@ -601,7 +627,7 @@ def _menu(session: DemoSession) -> bool:
 
 def render_command(session: DemoSession, command: str, *, root: Path) -> str | None:
     """Return the text for an inspection command, or None when it is unknown."""
-    if command not in {"r", "t", "p", "v", "d", "e"}:
+    if command not in {"r", "t", "p", "v", "d", "e", "h"}:
         return None
     if not session.turns:
         return "No turn yet.\n"
@@ -624,9 +650,19 @@ def render_command(session: DemoSession, command: str, *, root: Path) -> str | N
         return format_verification_view(turn)
     if command == "d":
         return format_diagnostics(turn)
+    if command == "h":
+        report = _report_for_turn(turn, session.probe)
+        return _open_html_report(report, root / "runtime" / "reports") + "\n"
     path = session.export(root)
     extras = sorted(item for item in path.parent.glob("distributions-*") if item.is_file())
     return format_export_message(path, path.with_suffix(".md"), extras)
+
+
+def _is_generation_detector(probe: LoadedProbe) -> bool:
+    """True only for a generation-protocol probe (pairwise probes excluded)."""
+    from glassbox.analysis.protocol import account_probe
+
+    return account_probe(probe).compatible_generation_detector
 
 
 def _ensure_model(session: DemoSession, console: Console) -> None:

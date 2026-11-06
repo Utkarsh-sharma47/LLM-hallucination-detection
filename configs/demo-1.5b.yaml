@@ -1,0 +1,24 @@
+# Optional demo settings for Qwen2.5-1.5B-Instruct.
+# Use: python -m glassbox --config configs/demo-1.5b.yaml
+# Needs about 3.9 GiB of free RAM in bfloat16 (plus headroom). The first run
+# downloads about 3 GB, so do not pass --offline until the weights are cached.
+# The saved probe was trained on the 0.5B model and will report itself as
+# incompatible here; no score is invented.
+# revision: "main" until the first download. Then replace it with the
+# "Model revision" commit printed in section [06] so later runs are pinned.
+
+model:
+  name: Qwen/Qwen2.5-1.5B-Instruct
+  revision: main
+  device: auto
+  dtype: bfloat16
+
+generation:
+  max_new_tokens: 32
+  temperature: 0.0
+  top_k: 5
+  layer_index: -1
+  position: last_generated_token
+
+references: configs/curated_facts.yaml
+probe_dir: null

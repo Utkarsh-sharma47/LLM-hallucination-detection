@@ -34,6 +34,7 @@ python -m glassbox text-baselines --max-questions 200 --run-id halueval-text-bas
 
 | Run or check | Failure |
 | --- | --- |
+| `task7-halueval-generation-2400-001` | Fresh generation-protocol run: 2,400 HaluEval generations, 1,956 unvalidated and 62 ambiguous; binary train 136/103, validation 47/28, test 35/33. The generation probe saved, but test AUROC was 0.522 on 68 labeled rows (95% grouped interval 0.388–0.667), below answer-text TF-IDF 0.735. Test ECE 0.114; calibration rejected; not a successful detector. TruthfulQA external slice: 3/3 labeled classes, 34 unvalidated (6 scored; no interval). Worktree dirty, so not reproducible. See [RESEARCH.md](RESEARCH.md). |
 | `halueval-pair-002` calibration | Test ECE 0.114, above 0.10. `calibration_validated` is false. The demo shows `EXPERIMENTAL PROBE SCORE` and `RISK NOT ASSESSED`. |
 | `halueval-pair-002` provenance | Recorded commit `9b8bcc48019774510a7947730504fab29272e75b` with a dirty worktree. Not a clean-checkout reproduction. Related: issue #8. |
 | Interactive pair-probe scores | Correct answers, including "The capital of France is Paris.", received an experimental score near 1.0 while the curated check marked France correct. |

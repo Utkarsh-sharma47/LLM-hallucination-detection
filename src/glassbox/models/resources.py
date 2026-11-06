@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+import sys
+
 QWEN_0_5B = "Qwen/Qwen2.5-0.5B-Instruct"
 QWEN_1_5B = "Qwen/Qwen2.5-1.5B-Instruct"
 QWEN_3B = "Qwen/Qwen2.5-3B-Instruct"
@@ -21,7 +24,17 @@ DTYPE_BYTES: dict[str, int] = {
 
 # Activations, allocator overhead, and the tokenizer sit on top of the weights.
 _WEIGHT_OVERHEAD = 1.35
-_HEADROOM_BYTES = 1_000_000_000
+
+
+def _headroom_bytes() -> int:
+    """Spare RAM to keep free; override with GLASSBOX_HEADROOM_GB (default 1)."""
+    try:
+        return int(float(os.environ.get("GLASSBOX_HEADROOM_GB", "1")) * 1_000_000_000)
+    except ValueError:
+        return 1_000_000_000
+
+
+_HEADROOM_BYTES = _headroom_bytes()
 _PREFERRED_ORDER = (QWEN_3B, QWEN_1_5B, QWEN_0_5B)
 
 
@@ -30,15 +43,80 @@ class ModelMemoryError(MemoryError):
 
 
 def available_ram_bytes() -> int:
-    """Return MemAvailable from ``/proc/meminfo``."""
+    """Return currently available RAM in bytes (Linux, Windows, macOS)."""
+    if sys.platform.startswith("linux"):
+        try:
+            with open("/proc/meminfo", encoding="utf-8") as meminfo:
+                for line in meminfo:
+                    if line.startswith("MemAvailable:"):
+                        return int(line.split()[1]) * 1024
+        except OSError as exc:
+            raise ModelMemoryError("Could not read available memory.") from exc
+        raise ModelMemoryError("MemAvailable is missing from /proc/meminfo.")
+
+    if os.name == "nt":
+        import ctypes
+
+        class _MemoryStatusEx(ctypes.Structure):
+            _fields_ = [
+                ("dwLength", ctypes.c_ulong),
+                ("dwMemoryLoad", ctypes.c_ulong),
+                ("ullTotalPhys", ctypes.c_ulonglong),
+                ("ullAvailPhys", ctypes.c_ulonglong),
+                ("ullTotalPageFile", ctypes.c_ulonglong),
+                ("ullAvailPageFile", ctypes.c_ulonglong),
+                ("ullTotalVirtual", ctypes.c_ulonglong),
+                ("ullAvailVirtual", ctypes.c_ulonglong),
+                ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+            ]
+
+        status = _MemoryStatusEx()
+        status.dwLength = ctypes.sizeof(_MemoryStatusEx)
+        if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+            raise ModelMemoryError("Could not read available memory.")
+        return int(status.ullAvailPhys)
+
     try:
-        with open("/proc/meminfo", encoding="utf-8") as meminfo:
-            for line in meminfo:
-                if line.startswith("MemAvailable:"):
-                    return int(line.split()[1]) * 1024
-    except OSError as exc:
+        import psutil
+
+        return int(psutil.virtual_memory().available)
+    except Exception as exc:  # pragma: no cover - other platforms
         raise ModelMemoryError("Could not read available memory.") from exc
-    raise ModelMemoryError("MemAvailable is missing from /proc/meminfo.")
+
+
+def peak_rss_kb() -> float:
+    """Peak resident memory of this process in KiB (cross-platform)."""
+    try:
+        import resource
+
+        return float(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+    except ImportError:
+        pass
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class _Counters(ctypes.Structure):
+            _fields_ = [
+                ("cb", wintypes.DWORD),
+                ("PageFaultCount", wintypes.DWORD),
+                ("PeakWorkingSetSize", ctypes.c_size_t),
+                ("WorkingSetSize", ctypes.c_size_t),
+                ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+                ("PagefileUsage", ctypes.c_size_t),
+                ("PeakPagefileUsage", ctypes.c_size_t),
+            ]
+
+        counters = _Counters()
+        counters.cb = ctypes.sizeof(_Counters)
+        process = ctypes.windll.kernel32.GetCurrentProcess()
+        ctypes.windll.psapi.GetProcessMemoryInfo(process, ctypes.byref(counters), counters.cb)
+        return counters.PeakWorkingSetSize / 1024
+    except Exception:
+        return 0.0
 
 
 def estimate_weight_bytes(model_name: str, dtype_name: str) -> int | None:
@@ -80,7 +158,7 @@ def recommended_model(available_bytes: int) -> tuple[str, str]:
             gib = available_bytes / (1024**3)
             return model_name, (
                 f"{model_name} is the largest Qwen2.5 instruct model whose "
-                f"bfloat16 weights fit in {gib:.1f} GiB available RAM with 1 GiB headroom."
+                f"bfloat16 weights fit in {gib:.1f} GiB available RAM with {_HEADROOM_BYTES / 1e9:.1f} GB headroom."
             )
     return QWEN_0_5B, (
         f"{QWEN_0_5B} is the smallest supported Qwen candidate. "
@@ -96,6 +174,6 @@ def assert_weights_fit(model_name: str, dtype_name: str, available_bytes: int) -
     if available_bytes < needed + _HEADROOM_BYTES:
         raise ModelMemoryError(
             f"{model_name} in {dtype_name} needs about {needed / (1024**3):.1f} GiB "
-            f"plus 1 GiB headroom, and {available_bytes / (1024**3):.1f} GiB is available. "
+            f"plus {_HEADROOM_BYTES / 1e9:.1f} GB headroom, and {available_bytes / (1024**3):.1f} GiB is available. "
             f"Use {QWEN_0_5B} for this machine, or free RAM and retry."
         )

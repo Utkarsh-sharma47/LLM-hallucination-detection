@@ -16,10 +16,10 @@ Version `0.1.0`. No GitHub release has been cut. The code license is unselected:
 | Hidden-state logistic probe | Pair-protocol probe in `artifacts/probes/final-hidden-state/` (gitignored). It discriminates supplied HaluEval answers. Calibration was rejected. The demo shows `EXPERIMENTAL PROBE SCORE` and `RISK NOT ASSESSED`. |
 | Text baselines | Length and gold-answer overlap explain most of the pair-task score. See [docs/RESEARCH.md](docs/RESEARCH.md). This is not a generation detector. |
 | TruthfulQA generation check | 40 generated answers, 5 labeled by a listed reference, 35 unvalidated. Not evidence for the pair AUROC. Early detection and activation intervention are not implemented. |
-| Generation-trained probe | Separate run under `artifacts/probes/generation-runs/`. It does not replace the live pair probe. The recorded `halueval-generation-001` run is **not** a validated detector (test AUROC 0.646 on 20 labeled rows, below TF-IDF 0.657). |
+| Generation-trained probe | Fresh 2,400-answer run `task7-halueval-generation-2400-001` saved a separate experimental probe. Test AUROC 0.522 on 68 labeled rows, below answer-text TF-IDF 0.735; calibration was rejected. It is **not** a validated detector and does not replace the live pair probe. See [docs/RESEARCH.md](docs/RESEARCH.md). |
 | Generation calibration gate (#18) | Pre-registered: threshold 0.65, 20 rows per class, ECE ≤ 0.10 on validation. Until it passes, the demo keeps `EXPERIMENTAL PROBE SCORE` and `RISK NOT ASSESSED`. |
 | Pair-probe length diagnostic | On 52 controlled completions (13 questions × short/sentence × faithful/false), AUROC 0.494. Sentence-form faithful FPR 1.0; short faithful FPR 0.0. The live pair probe tracks answer format, not factual correctness. |
-| Generation Dataset v2 | Assembler keeps 001 split membership. The 20-per-class target is not met. No human labels were invented. |
+| Generation Dataset v2 | The fresh task 7 run meets 20 per class in train, validation, and test, but the detector and calibration bars are not met. Human labels were not invented; ambiguous and unvalidated answers remain excluded. |
 | Session HTML view | `view-session` renders an exported `session.json` without presenting uncalibrated scores as factual-risk probabilities. |
 
 Details, conflicts, and the task list: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/ROADMAP.md](docs/ROADMAP.md), [docs/RESEARCH.md](docs/RESEARCH.md).

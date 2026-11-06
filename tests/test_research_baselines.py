@@ -14,6 +14,7 @@ from glassbox.data.truthfulqa import TruthfulItem, label_generated_answer
 from glassbox.evaluation.metrics import bootstrap_interval
 from glassbox.present import render_turn_text
 from glassbox.probes.preprocess import apply_standard_scaler, fit_standard_scaler
+from glassbox.probes.scoring import CALIBRATION_ECE_LIMIT, CALIBRATION_MIN_PER_CLASS
 from glassbox.probes.text_baseline import score_text_rows
 from glassbox.reporting import TurnRecord, format_probe_view
 from glassbox.verification import CuratedFact, label_answer
@@ -157,13 +158,22 @@ def test_saturated_experimental_score_is_not_a_risk() -> None:
 def test_saved_probe_matches_demo_config() -> None:
     probe = Path("artifacts/probes/final-hidden-state/metadata.json")
     if not probe.is_file():
-        pytest.skip("saved probe is local and gitignored")
+        pytest.skip("no saved probe in this checkout")
     metadata = json.loads(probe.read_text(encoding="utf-8"))
     demo = yaml.safe_load(Path("configs/demo.yaml").read_text(encoding="utf-8"))
     assert metadata["model_name"] == demo["model"]["name"]
     assert metadata["model_revision"] == demo["model"]["revision"]
     assert metadata["dtype"] == demo["model"]["dtype"]
     assert metadata["position"] == demo["generation"]["position"]
-    assert metadata["calibration_validated"] is False
     assert metadata["label_protocol"] == "halueval_qa_pair_v1"
-    assert metadata["experimental"] is True
+    # The decision must follow the fixed rule applied to the stored numbers,
+    # whatever the probe's value is. The limit itself must not move.
+    assert CALIBRATION_ECE_LIMIT == 0.10
+    classes_ready = all(
+        metadata[key][name] >= CALIBRATION_MIN_PER_CLASS
+        for key in ("validation_class_counts", "test_class_counts")
+        for name in ("faithful", "hallucinated")
+    )
+    expected = classes_ready and metadata["test_ece"] <= CALIBRATION_ECE_LIMIT
+    assert metadata["calibration_validated"] is expected
+    assert metadata["experimental"] is (not expected)

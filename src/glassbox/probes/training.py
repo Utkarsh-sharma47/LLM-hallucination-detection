@@ -8,7 +8,6 @@ to training when a class is missing.
 from __future__ import annotations
 
 import argparse
-import resource
 import shutil
 import subprocess
 import sys
@@ -34,6 +33,7 @@ from glassbox.demo_config import default_probe_dir, load_demo_config
 from glassbox.evaluation.metrics import bootstrap_interval, compute_binary_metrics
 from glassbox.evaluation.records import build_run_record, write_json
 from glassbox.models.backend import GenerationSettings, HuggingFaceBackend, completion_hidden_states
+from glassbox.models.resources import peak_rss_kb
 from glassbox.probes.logistic import PROBE_NOT_TRAINED, LogisticProbe
 from glassbox.probes.preprocess import apply_standard_scaler, fit_standard_scaler
 from glassbox.probes.scoring import (
@@ -410,7 +410,7 @@ def train_command(args: argparse.Namespace) -> int:
             outcome.reason = outcome.reason.replace(str(staging), str(final_dir))
             outcome.directory = final_dir
         _write_experiment(args.run_id, outcome, dataset_record, config.spec.name)
-        peak_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        peak_kb = peak_rss_kb()
         print(f"Peak RSS: {peak_kb / 1024:.0f} MiB", flush=True)
     except (OSError, ValueError, RuntimeError, MemoryError, ImportError) as exc:
         print(f"{PROBE_NOT_TRAINED}: {exc}", file=sys.stderr)
