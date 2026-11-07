@@ -457,7 +457,7 @@ class GlassBoxReport:
 
     def _conclusion_json(self) -> dict[str, Any]:
         catalog = load_catalog(self.catalog_path)
-        claims = verify_answer(self.answer, catalog)
+        claims = verify_answer(self.answer, catalog, self.question)
         account = account_probe(self.probe)
 
         return {
