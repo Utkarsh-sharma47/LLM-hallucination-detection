@@ -17,6 +17,7 @@ from typing import Any
 
 import yaml
 
+from glassbox.analysis.claims import _evidence_status
 from glassbox.data.schema import ClaimVerdict, EvidenceProvenance, Label
 
 
@@ -208,23 +209,11 @@ def verify_answer_with_retrieval(
     from glassbox.analysis.claims import _match, split_claims
 
     if not answer.strip():
-        return {
-            "overall": "UNVALIDATED",
-            "note": "The model produced no text.",
-            "claim_count": 0,
-            "counts": {
-                "FAITHFUL": 0,
-                "HALLUCINATED": 0,
-                "AMBIGUOUS": 0,
-                "UNVALIDATED": 0,
-                "SUPPORTED": 0,
-                "CONTRADICTED": 0,
-                "CONFLICTING": 0,
-                "UNVERIFIED": 0,
-            },
-            "evidence_source": "none",
-            "claims": [],
-        }
+        return _summarise_verdicts(
+            (),
+            catalog_available=bool(catalog),
+            retrieval_enabled=retrieval_client is not None,
+        )
 
     pieces = split_claims(answer)
     verdicts: list[ClaimVerdict] = []
@@ -257,10 +246,19 @@ def verify_answer_with_retrieval(
             )
             verdicts.append(verdict)
 
-    return _summarise_verdicts(tuple(verdicts))
+    return _summarise_verdicts(
+        tuple(verdicts),
+        catalog_available=bool(catalog),
+        retrieval_enabled=retrieval_client is not None,
+    )
 
 
-def _summarise_verdicts(verdicts: tuple[ClaimVerdict, ...]) -> dict[str, object]:
+def _summarise_verdicts(
+    verdicts: tuple[ClaimVerdict, ...],
+    *,
+    catalog_available: bool,
+    retrieval_enabled: bool,
+) -> dict[str, object]:
     counts: dict[str, int] = {
         "FAITHFUL": 0,
         "HALLUCINATED": 0,
@@ -296,7 +294,11 @@ def _summarise_verdicts(verdicts: tuple[ClaimVerdict, ...]) -> dict[str, object]
     else:
         overall = "UNVALIDATED"
 
-    evidence_sources = {v.evidence_source for v in verdicts}
+    evidence_sources = {
+        v.evidence_source
+        for v in verdicts
+        if v.evidence_source == "curated_catalog" or v.provenance
+    }
     if "independent_retrieval" in evidence_sources and "curated_catalog" in evidence_sources:
         primary_source = "mixed"
     elif "independent_retrieval" in evidence_sources:
@@ -309,6 +311,13 @@ def _summarise_verdicts(verdicts: tuple[ClaimVerdict, ...]) -> dict[str, object]
     return {
         "overall": overall,
         "note": _verdict_note(overall, primary_source),
+        "evidence_status": _evidence_status(
+            [v.status for v in verdicts],
+            reference_available=catalog_available,
+            retrieval_available=retrieval_enabled,
+        ),
+        "catalog_available": catalog_available,
+        "retrieval_enabled": retrieval_enabled,
         "claim_count": len(verdicts),
         "counts": counts,
         "evidence_source": primary_source,

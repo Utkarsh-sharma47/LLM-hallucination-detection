@@ -8,12 +8,13 @@ and factuality verification into a clean terminal presentation.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 
-from glassbox.analysis.capture import representation_change
+from glassbox.analysis.capture import BYTE_LIMIT, representation_change
 from glassbox.analysis.claims import load_catalog, verify_answer
 from glassbox.analysis.protocol import account_probe
 from glassbox.analysis.retrieval import RetrievalClient, verify_answer_with_retrieval
@@ -93,6 +94,15 @@ class GlassBoxReport:
             "conclusion": self._conclusion_json(),
         }
 
+    @cached_property
+    def _claim_results(self) -> dict[str, object]:
+        catalog = load_catalog(self.catalog_path)
+        if self.retrieval_client is not None:
+            return verify_answer_with_retrieval(
+                self.answer, catalog, retrieval_client=self.retrieval_client
+            )
+        return verify_answer(self.answer, catalog)
+
     def _token_probabilities_section(self) -> str:
         tokens = self.generation.tokens
         if not tokens:
@@ -144,14 +154,7 @@ class GlassBoxReport:
         return "\n".join(lines)
 
     def _factuality_section(self) -> str:
-        catalog = load_catalog(self.catalog_path)
-        if self.retrieval_client is not None:
-            claims = verify_answer_with_retrieval(
-                self.answer, catalog, retrieval_client=self.retrieval_client
-            )
-        else:
-            claims = verify_answer(self.answer, catalog)
-
+        claims = self._claim_results
         counts = claims.get("counts", {})
         overall = claims.get("overall", "UNVALIDATED")
         note = claims.get("note", "")
@@ -160,6 +163,7 @@ class GlassBoxReport:
         lines = [
             f"Overall status: {overall}",
             f"Evidence source: {evidence_source}",
+            f"Evidence status: {claims.get('evidence_status', 'UNAVAILABLE')}",
             f"Number of claims: {claims.get('claim_count', 0)}",
             f"Verified claims: {counts.get('FAITHFUL', 0)}",
             f"Hallucinated claims: {counts.get('HALLUCINATED', 0)}",
@@ -197,15 +201,27 @@ class GlassBoxReport:
 
     def _internal_model_section(self) -> str:
         gen = self.generation
+        vector_layers = sorted(gen.layer_vectors)
+        span_layers = sorted(gen.token_spans or {})
+        token_positions = (
+            list(range(gen.prompt_tokens, gen.prompt_tokens + gen.generated_tokens))
+            if span_layers
+            else []
+        )
         lines = [
             f"Model: {gen.model_name}",
             f"Model revision: {gen.model_revision}",
-            f"Captured layers: {gen.hidden_state_count}",
+            f"Hidden-state layers observed: {gen.hidden_state_count or 0}",
+            f"Selected-position vector layers retained: {vector_layers or 'none'}",
+            f"Token-span layers retained: {span_layers or 'none'}",
+            f"Selected token positions (sequence indices): {token_positions or 'none'}",
             f"Hidden-state dimension: {int(gen.feature.shape[0]) if gen.feature is not None else 'unavailable'}",
             f"Feature layer: {gen.feature_layer}",
+            f"Feature position: {gen.position} (sequence index: {gen.capture_position_index if gen.capture_position_index is not None else 'unavailable'})",
             f"Token capture configuration: {gen.capture_mode}",
-            f"Capture bytes: {gen.capture_bytes} (budget cap: 32 MB)",
-            f"Transient hidden-state peak: {getattr(gen, 'transient_hidden_state_bytes', 0)} bytes",
+            f"Retained NumPy bytes: {gen.capture_bytes}",
+            f"Token-span budget usage: {gen.token_span_bytes} / {BYTE_LIMIT} bytes",
+            f"Estimated transient hidden-state activation peak: {getattr(gen, 'transient_hidden_state_bytes', 0)} bytes",
             f"Analysis forward passes: {getattr(gen, 'analysis_forward_calls', 0)}",
             f"Analysis latency: {getattr(gen, 'analysis_latency_seconds', 0.0):.3f}s",
             f"Capture note: {gen.capture_note}",
@@ -269,9 +285,25 @@ class GlassBoxReport:
     def _layer_section(self) -> str:
         spans = self.generation.token_spans or {}
         if not spans:
-            return "No layer-wise analysis available. Token spans not captured."
+            if not self.generation.hidden_states_available:
+                return "Layer-wise status: UNAVAILABLE. Hidden-state analysis was not available."
+            if self.generation.layer_vectors:
+                layers = sorted(self.generation.layer_vectors)
+                return (
+                    "Layer-wise status: SELECTED_LAYER_VECTORS_ONLY. "
+                    f"Retained configured-position vectors for layers {layers}, but no token "
+                    "spans; layer-wise change analysis is unavailable."
+                )
+            return (
+                "Layer-wise status: OBSERVED_NOT_RETAINED. "
+                f"Observed {self.generation.hidden_state_count or 0} layers during the forward "
+                "pass, but retained no reusable token vectors; layer-wise analysis is unavailable."
+            )
 
-        lines = ["Layer | Cosine Distance | Interpretation"]
+        lines = [
+            f"Layer-wise status: RETAINED_TOKEN_SPANS ({len(spans)} layers)",
+            "Layer | Cosine Distance | Interpretation",
+        ]
         lines.append("-" * 60)
 
         for layer in sorted(spans.keys()):
@@ -292,32 +324,18 @@ class GlassBoxReport:
         )
 
     def _conclusion_section(self) -> str:
-        catalog = load_catalog(self.catalog_path)
-        if self.retrieval_client is not None:
-            claims = verify_answer_with_retrieval(
-                self.answer, catalog, retrieval_client=self.retrieval_client
-            )
-        else:
-            claims = verify_answer(self.answer, catalog)
+        claims = self._claim_results
         overall = claims.get("overall", "UNVALIDATED")
 
         account = account_probe(self.probe)
-
-        evidence_status = (
-            "RETRIEVAL+AUDITED"
-            if self.retrieval_client is not None and catalog
-            else "RETRIEVAL"
-            if self.retrieval_client is not None
-            else "AVAILABLE"
-            if catalog
-            else "UNAVAILABLE"
-        )
+        factuality_probability = self._validated_hallucination_probability()
 
         lines = [
             f"Factuality status: {overall}",
             f"Generation uncertainty: {'LOW' if self.generation.tokens and all(t.probability > 0.7 for t in self.generation.tokens) else 'MIXED'}",
             f"Probe reliability: {'CALIBRATED' if account.compatible_generation_detector else 'EXPERIMENTAL' if self.probe else 'UNAVAILABLE'}",
-            f"Evidence status: {evidence_status}",
+            f"Evidence status: {claims.get('evidence_status', 'UNAVAILABLE')}",
+            f"Factuality probability: {factuality_probability if factuality_probability is not None else 'NOT AVAILABLE'}",
             "",
             "Main limitations:",
             "  - Token probabilities are generation confidence, not factuality confidence",
@@ -390,14 +408,28 @@ class GlassBoxReport:
 
     def _hidden_state_metadata_json(self) -> dict[str, Any]:
         gen = self.generation
+        vector_layers = sorted(gen.layer_vectors)
+        span_layers = sorted(gen.token_spans or {})
         return {
             "available": gen.hidden_states_available,
+            "observed_layer_count": gen.hidden_state_count,
             "hidden_state_count": gen.hidden_state_count,
+            "retained_position_vector_layers": vector_layers,
+            "retained_token_span_layers": span_layers,
+            "selected_token_positions": list(
+                range(gen.prompt_tokens, gen.prompt_tokens + gen.generated_tokens)
+            )
+            if span_layers
+            else [],
             "feature_layer": gen.feature_layer,
             "feature_dimension": int(gen.feature.shape[0]) if gen.feature is not None else None,
             "position": gen.position,
+            "position_index": gen.capture_position_index,
             "capture_mode": gen.capture_mode,
             "capture_bytes": gen.capture_bytes,
+            "retained_numpy_bytes": gen.capture_bytes,
+            "token_span_bytes": gen.token_span_bytes,
+            "token_span_budget_bytes": BYTE_LIMIT,
             "capture_note": gen.capture_note,
             "transient_hidden_state_bytes": getattr(gen, "transient_hidden_state_bytes", 0),
             "analysis_latency_seconds": getattr(gen, "analysis_latency_seconds", 0.0),
@@ -422,21 +454,16 @@ class GlassBoxReport:
         }
 
     def _factuality_json(self) -> dict[str, Any]:
-        catalog = load_catalog(self.catalog_path)
-        if self.retrieval_client is not None:
-            claims = verify_answer_with_retrieval(
-                self.answer, catalog, retrieval_client=self.retrieval_client
-            )
-        else:
-            claims = verify_answer(self.answer, catalog)
+        claims = self._claim_results
         return {
-            "catalog_available": bool(catalog),
+            "catalog_available": claims.get("catalog_available", False),
             "catalog_path": str(self.catalog_path) if self.catalog_path else None,
-            "retrieval_enabled": self.retrieval_client is not None,
+            "retrieval_enabled": claims.get("retrieval_enabled", self.retrieval_client is not None),
             "overall_status": claims.get("overall"),
             "claim_count": claims.get("claim_count"),
             "counts": claims.get("counts"),
             "evidence_source": claims.get("evidence_source"),
+            "evidence_status": claims.get("evidence_status"),
             "claims": claims.get("claims"),
         }
 
@@ -456,12 +483,13 @@ class GlassBoxReport:
         }
 
     def _conclusion_json(self) -> dict[str, Any]:
-        catalog = load_catalog(self.catalog_path)
-        claims = verify_answer(self.answer, catalog)
+        claims = self._claim_results
         account = account_probe(self.probe)
 
         return {
             "factuality_status": claims.get("overall"),
+            "evidence_status": claims.get("evidence_status", "UNAVAILABLE"),
+            "factuality_probability": self._validated_hallucination_probability(),
             "generation_uncertainty": "LOW"
             if self.generation.tokens and all(t.probability > 0.7 for t in self.generation.tokens)
             else "MIXED",
@@ -470,7 +498,6 @@ class GlassBoxReport:
             else "EXPERIMENTAL"
             if self.probe
             else "UNAVAILABLE",
-            "evidence_status": "AVAILABLE" if catalog else "UNAVAILABLE",
             "limitations": [
                 "Token probabilities are generation confidence, not factuality confidence",
                 "High probability does not guarantee correctness",
