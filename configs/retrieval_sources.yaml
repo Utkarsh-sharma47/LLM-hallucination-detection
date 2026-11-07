@@ -1,0 +1,21 @@
+# Retrieval source configuration for Glass Box.
+# Schema: retrieval_sources_v1
+# retrieval_enabled is false by default. Set to true only when you have reviewed
+# the source policy and are running an explicit experiment entry point.
+# Tests and smoke checks must keep this disabled and use fixtures instead.
+
+schema: retrieval_sources_v1
+retrieval_enabled: false
+
+sources:
+  - id: wikipedia_api
+    type: wikipedia
+    quality_tier: 1
+    description: "Wikipedia API for factual claims"
+    rate_limit_per_minute: 10
+
+  - id: halueval_passages
+    type: dataset
+    quality_tier: 2
+    description: "HaluEval knowledge passages bundled with the dataset"
+    path: "data/halueval_knowledge.json"

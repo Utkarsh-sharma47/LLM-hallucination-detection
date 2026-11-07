@@ -1,0 +1,11 @@
+{
+  "decision_format": "decisions-SSS.json: [[source_index, label, quote, note, flags], ...]",
+  "dropped_before_review": [],
+  "fields_withheld": [
+    "probe score",
+    "automatic label",
+    "right answer"
+  ],
+  "plan_sha256": "897aeaac8632899e511c16203976241bed5f46f476acd8dfd5efb516743d1e16",
+  "queue_rows": 800
+}

@@ -156,7 +156,13 @@ def _apply_probe(turn: TurnRecord, probe: LoadedProbe | None) -> None:
     note = _SCORE_NOTE_EXPERIMENTAL
     if isinstance(extra, str) and extra:
         note = f"{note} {extra}"
-    if probe.calibrated:
+    # Issue #18 safeguard: only a compatible *generation* detector may set
+    # a factual-risk score. A Platt-calibrated pairwise (HaluEval pair-task)
+    # probe is calibrated for supplied pairs, not for Qwen generations.
+    from glassbox.analysis.protocol import account_probe
+
+    account = account_probe(probe)
+    if probe.calibrated and account.compatible_generation_detector:
         turn.probe_status = "calibrated probe loaded"
         turn.factual_risk_score = turn.experimental_score
         ece = probe.metadata.get("test_ece")
@@ -172,6 +178,7 @@ def _apply_probe(turn: TurnRecord, probe: LoadedProbe | None) -> None:
         return
     turn.probe_status = "experimental probe loaded"
     turn.calibration_status = "not validated"
+    turn.factual_risk_score = None
     turn.probe_task = _probe_task(probe)
     turn.score_note = note
 
@@ -201,7 +208,13 @@ def _record_probe_decision(turn: TurnRecord, probe: LoadedProbe) -> None:
     cutoff = 0.5 if turn.probe_threshold is None else turn.probe_threshold
     if turn.experimental_score is not None:
         turn.probe_prediction = "hallucinated" if turn.experimental_score >= cutoff else "faithful"
-    turn.calibration_status = "validated" if probe.calibrated else "not validated"
+    from glassbox.analysis.protocol import account_probe
+
+    turn.calibration_status = (
+        "validated"
+        if probe.calibrated and account_probe(probe).compatible_generation_detector
+        else "not validated"
+    )
 
 
 def _payload(turn: TurnRecord) -> dict[str, object]:

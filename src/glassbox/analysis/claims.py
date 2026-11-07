@@ -14,7 +14,7 @@ import yaml
 
 from glassbox.config import repo_root
 from glassbox.data.schema import Label
-from glassbox.verification import asserts_phrase
+from glassbox.verification import asserts_phrase, normalize_question
 
 _SPLIT = re.compile(r"(?<=[.!?])\s+|\s+\band\b\s+", re.IGNORECASE)
 
@@ -28,6 +28,7 @@ class CatalogClaim:
     accepted: tuple[str, ...]
     false_claims: tuple[str, ...]
     source: str
+    applies_to: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -66,8 +67,15 @@ def split_claims(answer: str) -> tuple[str, ...]:
     return tuple(piece for piece in pieces if piece)
 
 
-def verify_answer(answer: str, catalog: tuple[CatalogClaim, ...]) -> dict[str, object]:
-    """Verify each slice. The probe is not an input."""
+def verify_answer(
+    answer: str, catalog: tuple[CatalogClaim, ...], question: str | None = None
+) -> dict[str, object]:
+    """Verify each slice. The probe is not an input.
+
+    A claim with ``applies_to`` is checked only when the question contains one of those
+    phrases, so a city name in an unrelated answer is not judged against it. Without a
+    question, such claims are skipped. Claims without ``applies_to`` apply to every answer.
+    """
     if not answer.strip():
         return _summary((), "UNVALIDATED", "The model produced no text.")
     if not catalog:
@@ -84,9 +92,10 @@ def verify_answer(answer: str, catalog: tuple[CatalogClaim, ...]) -> dict[str, o
             "UNVALIDATED",
             "Verification is unavailable. No claim catalog is configured.",
         )
+    active = tuple(item for item in catalog if _applies(item, question))
     findings: list[ClaimFinding] = []
     for piece in split_claims(answer):
-        hits = [_match(piece, item) for item in catalog]
+        hits = [_match(piece, item) for item in active]
         hits = [hit for hit in hits if hit is not None]
         if not hits:
             findings.append(
@@ -126,7 +135,17 @@ def _parse_claim(raw: object) -> CatalogClaim:
         accepted=_phrases(accepted),
         false_claims=_phrases(false_claims),
         source=source.strip(),
+        applies_to=_phrases(raw.get("applies_to")),
     )
+
+
+def _applies(item: CatalogClaim, question: str | None) -> bool:
+    if not item.applies_to:
+        return True
+    if not question:
+        return False
+    key = normalize_question(question)
+    return any(normalize_question(phrase) in key for phrase in item.applies_to)
 
 
 def _phrases(value: object) -> tuple[str, ...]:
@@ -135,7 +154,7 @@ def _phrases(value: object) -> tuple[str, ...]:
     if not isinstance(value, list) or not all(
         isinstance(item, str) and item.strip() for item in value
     ):
-        raise ValueError("accepted and false_claims must be lists of strings")
+        raise ValueError("accepted, false_claims and applies_to must be lists of strings")
     return tuple(item.strip() for item in value)
 
 
