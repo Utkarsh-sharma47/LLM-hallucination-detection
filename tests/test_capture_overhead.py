@@ -187,6 +187,74 @@ def test_numerical_equivalence_on_fixed_inputs():
     assert np.allclose(result.feature, expected, atol=1e-5)
 
 
+def test_capture_bytes_and_position_distinguish_transient_from_retained():
+    torch, MockLM, MockTokenizer = _get_mock_classes()
+
+    class PositionModel(MockLM):
+        def forward(self, input_ids, output_hidden_states=False, use_cache=False, **kwargs):
+            output = super().forward(
+                input_ids,
+                output_hidden_states=output_hidden_states,
+                use_cache=use_cache,
+                **kwargs,
+            )
+            if output_hidden_states:
+                seq_len = input_ids.shape[1]
+                positions = torch.arange(seq_len, dtype=torch.float32).view(1, seq_len, 1)
+                output.hidden_states = tuple(
+                    positions.expand(1, seq_len, self.hidden_dim).clone() + (layer + 1) * 100
+                    for layer in range(self.num_layers)
+                )
+            return output
+
+    loaded = _make_loaded(PositionModel(hidden_dim=32, num_layers=4), MockTokenizer())
+    final = run_generation(
+        loaded,
+        "Question?",
+        GenerationSettings(
+            max_new_tokens=2,
+            position="last_generated_token",
+            capture_mode="final",
+        ),
+    )
+
+    expected_position = final.prompt_tokens + final.generated_tokens - 1
+    assert final.capture_position_index == expected_position
+    assert final.feature is not None
+    assert final.feature[0] == expected_position + (final.feature_layer + 1) * 100
+    assert final.hidden_state_count == 4
+    assert final.layer_vectors.keys() == {final.feature_layer}
+    assert final.token_spans == {}
+    assert final.token_span_bytes == 0
+    assert final.capture_bytes == final.feature.nbytes + final.answer_mean_feature.nbytes
+    assert final.transient_hidden_state_bytes > final.capture_bytes
+
+    selected = run_generation(
+        loaded,
+        "Question?",
+        GenerationSettings(
+            max_new_tokens=2,
+            position="last_generated_token",
+            capture_mode="selected",
+        ),
+    )
+    assert set(selected.token_spans) == {0, 2, 3}
+    assert selected.token_span_bytes == sum(span.nbytes for span in selected.token_spans.values())
+    assert selected.capture_bytes > selected.token_span_bytes > 0
+    assert selected.capture_position_index == (
+        selected.prompt_tokens + selected.generated_tokens - 1
+    )
+
+    absent = run_generation(
+        loaded,
+        "Question?",
+        GenerationSettings(max_new_tokens=2, capture_mode="none"),
+    )
+    assert absent.hidden_state_count is None
+    assert absent.capture_bytes == absent.token_span_bytes == 0
+    assert absent.capture_position_index is None
+
+
 def test_transient_vs_retained_memory_distinction():
     """AC #3: Transient all-layer memory is distinguished from retained NumPy bytes."""
     transient = estimate_transient_hidden_state_bytes(
