@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import ast
 import json
-from pathlib import Path
 import zipfile
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SHARDS_DIR = ROOT / "calibration-batch-001-qwen0.5b" / "calibration-batch-001-qwen0.5b"
@@ -57,7 +57,11 @@ def main() -> None:
                 # Extract ASCII string array entries
                 stride = len(q_raw) // len(rows)
                 for i in range(len(rows)):
-                    qid = q_raw[i * stride : (i + 1) * stride].decode("ascii", errors="ignore").strip("\x00")
+                    qid = (
+                        q_raw[i * stride : (i + 1) * stride]
+                        .decode("ascii", errors="ignore")
+                        .strip("\x00")
+                    )
                     qid_list.append(qid)
 
     print(f"Total rows collected: {len(all_rows)}")
@@ -112,7 +116,7 @@ def main() -> None:
         npy_header = b"\x93NUMPY\x01\x00" + len(hdr_bytes).to_bytes(2, "little") + hdr_bytes
         zout.writestr("vectors.npy", npy_header + total_vectors_bytes)
 
-    print(f"\nSuccessfully assembled:")
+    print("\nSuccessfully assembled:")
     print(f"  Dataset:      {dataset_file} ({len(merged_rows)} rows)")
     print(f"  Binary Index: {binary_index_file} ({len(binary_rows)} candidates)")
     print(f"  Vectors:      {output_npz} ({len(all_rows)} vectors of dim 896)")
@@ -120,4 +124,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

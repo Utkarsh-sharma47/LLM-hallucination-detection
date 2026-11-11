@@ -11,17 +11,17 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import numpy as np
 from sklearn.linear_model import LogisticRegression
-from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import (
-    roc_auc_score,
     average_precision_score,
     precision_recall_fscore_support,
+    roc_auc_score,
 )
+from sklearn.preprocessing import StandardScaler
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_INDEX = (
@@ -47,7 +47,7 @@ def expected_calibration_error(
     edges = np.linspace(0.0, 1.0, bins + 1)
     total = float(truth.size)
     error = 0.0
-    for idx, (start, end) in enumerate(zip(edges[:-1], edges[1:])):
+    for idx, (start, end) in enumerate(zip(edges[:-1], edges[1:], strict=False)):
         if idx == bins - 1:
             mask = (values >= start) & (values <= end)
         else:
@@ -136,7 +136,7 @@ def main() -> None:
     feat_data = np.load(args.features)
     qids = [str(q) for q in feat_data["question_id"]]
     vectors = feat_data["vectors"]
-    vectors_by_id = {qid: vec for qid, vec in zip(qids, vectors)}
+    vectors_by_id = {qid: vec for qid, vec in zip(qids, vectors, strict=False)}
 
     data_by_split = {"train": ([], []), "validation": ([], []), "test": ([], [])}
     for qid, row in rows_by_id.items():
@@ -154,10 +154,16 @@ def main() -> None:
     X_test = np.asarray(data_by_split["test"][0], dtype=np.float32)
     y_test = np.asarray(data_by_split["test"][1], dtype=int)
 
-    print(f"\nSplit counts (Binary Candidates):")
-    print(f"  Train:      {len(y_train)} rows (Faithful={np.sum(y_train==0)}, Hallucinated={np.sum(y_train==1)})")
-    print(f"  Validation: {len(y_val)} rows (Faithful={np.sum(y_val==0)}, Hallucinated={np.sum(y_val==1)})")
-    print(f"  Test:       {len(y_test)} rows (Faithful={np.sum(y_test==0)}, Hallucinated={np.sum(y_test==1)})")
+    print("\nSplit counts (Binary Candidates):")
+    print(
+        f"  Train:      {len(y_train)} rows (Faithful={np.sum(y_train == 0)}, Hallucinated={np.sum(y_train == 1)})"
+    )
+    print(
+        f"  Validation: {len(y_val)} rows (Faithful={np.sum(y_val == 0)}, Hallucinated={np.sum(y_val == 1)})"
+    )
+    print(
+        f"  Test:       {len(y_test)} rows (Faithful={np.sum(y_test == 0)}, Hallucinated={np.sum(y_test == 1)})"
+    )
 
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
@@ -241,6 +247,7 @@ def main() -> None:
 
     # Save trained probe artifact (probe.joblib and metadata.json)
     import joblib
+
     payload = {
         "classifier": clf,
         "mean": np.asarray(scaler.mean_, dtype=np.float64),
@@ -281,4 +288,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
