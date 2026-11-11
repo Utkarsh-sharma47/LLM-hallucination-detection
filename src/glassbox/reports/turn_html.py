@@ -261,7 +261,12 @@ def _probe_card(report: Mapping[str, Any], probe: Mapping[str, Any]) -> str:
     else:
         pairs = [
             ("Protocol", probe.get("protocol")),
-            ("Raw experimental score", _fixed(_float(probe.get("raw_score")), 3)),
+            (
+                "Calibrated score"
+                if probe.get("calibration_status") == "validated"
+                else "Raw experimental score",
+                _fixed(_float(probe.get("raw_score")), 3),
+            ),
             ("Prediction", probe.get("prediction")),
             ("Threshold", probe.get("threshold")),
             ("Calibration status", probe.get("calibration_status")),

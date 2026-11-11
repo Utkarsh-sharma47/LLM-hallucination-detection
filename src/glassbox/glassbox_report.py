@@ -147,10 +147,10 @@ class GlassBoxReport:
         catalog = load_catalog(self.catalog_path)
         if self.retrieval_client is not None:
             claims = verify_answer_with_retrieval(
-                self.answer, catalog, retrieval_client=self.retrieval_client
+                self.answer, catalog, retrieval_client=self.retrieval_client, question=self.question
             )
         else:
-            claims = verify_answer(self.answer, catalog)
+            claims = verify_answer(self.answer, catalog, self.question)
 
         counts = claims.get("counts", {})
         overall = claims.get("overall", "UNVALIDATED")
@@ -295,10 +295,10 @@ class GlassBoxReport:
         catalog = load_catalog(self.catalog_path)
         if self.retrieval_client is not None:
             claims = verify_answer_with_retrieval(
-                self.answer, catalog, retrieval_client=self.retrieval_client
+                self.answer, catalog, retrieval_client=self.retrieval_client, question=self.question
             )
         else:
-            claims = verify_answer(self.answer, catalog)
+            claims = verify_answer(self.answer, catalog, self.question)
         overall = claims.get("overall", "UNVALIDATED")
 
         account = account_probe(self.probe)
@@ -322,7 +322,7 @@ class GlassBoxReport:
             "Main limitations:",
             "  - Token probabilities are generation confidence, not factuality confidence",
             "  - High probability does not guarantee correctness",
-            "  - Pairwise probe is not validated for generation factuality",
+            f"  - {_probe_limitation(account, self.probe)}",
         ]
 
         return "\n".join(lines)
@@ -425,10 +425,10 @@ class GlassBoxReport:
         catalog = load_catalog(self.catalog_path)
         if self.retrieval_client is not None:
             claims = verify_answer_with_retrieval(
-                self.answer, catalog, retrieval_client=self.retrieval_client
+                self.answer, catalog, retrieval_client=self.retrieval_client, question=self.question
             )
         else:
-            claims = verify_answer(self.answer, catalog)
+            claims = verify_answer(self.answer, catalog, self.question)
         return {
             "catalog_available": bool(catalog),
             "catalog_path": str(self.catalog_path) if self.catalog_path else None,
@@ -474,9 +474,27 @@ class GlassBoxReport:
             "limitations": [
                 "Token probabilities are generation confidence, not factuality confidence",
                 "High probability does not guarantee correctness",
-                "Pairwise probe is not validated for generation factuality",
+                _probe_limitation(account, self.probe),
             ],
         }
+
+
+def _probe_limitation(account: Any, probe: Any) -> str:
+    """The probe caveat that matches the probe actually loaded."""
+    if not getattr(account, "compatible_generation_detector", False):
+        return "Pairwise probe is not validated for generation factuality"
+    metadata = getattr(probe, "metadata", None) or {}
+    rate = metadata.get("base_rate")
+    average = (
+        f" (about {float(rate):.0%} of answers in its validation data)"
+        if isinstance(rate, (int, float)) and not isinstance(rate, bool)
+        else ""
+    )
+    return (
+        "Generation probe calibrated on AI-reviewed, HaluEval-style questions for one model. "
+        f"Most answers in that data were hallucinated{average}, so compare a score with that "
+        "average, not with 50%. Labels come from one AI reviewer."
+    )
 
 
 def build_report(
