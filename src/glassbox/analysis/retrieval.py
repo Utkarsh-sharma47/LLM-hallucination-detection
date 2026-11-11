@@ -197,6 +197,7 @@ def verify_answer_with_retrieval(
     answer: str,
     catalog: tuple[Any, ...],
     retrieval_client: RetrievalClient | None = None,
+    question: str | None = None,
 ) -> dict[str, object]:
     """Verify an answer using curated catalog first, then optional retrieval.
 
@@ -205,7 +206,7 @@ def verify_answer_with_retrieval(
     Claims with no catalog match fall through to retrieval when a client is
     provided. Probe scores are never inputs to this function.
     """
-    from glassbox.analysis.claims import _match, split_claims
+    from glassbox.analysis.claims import _match, applies_to_question, split_claims
 
     if not answer.strip():
         return {
@@ -232,7 +233,10 @@ def verify_answer_with_retrieval(
     for idx, piece in enumerate(pieces):
         claim_id = f"claim_{idx}"
         # Check curated catalog first
-        catalog_hits = [_match(piece, item) for item in catalog] if catalog else []
+        active = (
+            [item for item in catalog if applies_to_question(item, question)] if catalog else []
+        )
+        catalog_hits = [_match(piece, item) for item in active]
         catalog_hits = [h for h in catalog_hits if h is not None]
 
         if catalog_hits:

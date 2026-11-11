@@ -92,7 +92,7 @@ def verify_answer(
             "UNVALIDATED",
             "Verification is unavailable. No claim catalog is configured.",
         )
-    active = tuple(item for item in catalog if _applies(item, question))
+    active = tuple(item for item in catalog if applies_to_question(item, question))
     findings: list[ClaimFinding] = []
     for piece in split_claims(answer):
         hits = [_match(piece, item) for item in active]
@@ -139,7 +139,7 @@ def _parse_claim(raw: object) -> CatalogClaim:
     )
 
 
-def _applies(item: CatalogClaim, question: str | None) -> bool:
+def applies_to_question(item: CatalogClaim, question: str | None) -> bool:
     if not item.applies_to:
         return True
     if not question:
