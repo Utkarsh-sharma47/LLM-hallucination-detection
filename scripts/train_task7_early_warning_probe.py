@@ -311,7 +311,7 @@ def main(argv: list[str] | None = None) -> int:
             all_scores = probe.predict_proba(np.stack(record["vectors"]))[:, 1]
             all_flags = [bool(score >= threshold) for score in all_scores]
             event_index = event_index_from_prefix_labels(record["prefix_labels"])
-            for step, (vector, label, text_value, score) in enumerate(
+            for step, (vector, label, text_value, _score) in enumerate(
                 zip(
                     record["vectors"],
                     record["prefix_labels"],
