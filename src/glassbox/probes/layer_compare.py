@@ -11,7 +11,6 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from glassbox.config import repo_root
-from glassbox.evaluation.early_warning import EVENT_MEASUREMENT_ENABLED
 from glassbox.evaluation.generation_calibration import (
     PAIR_THRESHOLD,
     evaluate_generation_calibration_gate,
@@ -83,7 +82,7 @@ def evaluate_layer_comparison(
         "live_probe_untouched": True,
         "pair_threshold_unchanged": PAIR_THRESHOLD,
         "early_warning_lead": None,
-        "event_measurement_enabled": EVENT_MEASUREMENT_ENABLED,
+        "event_measurement_enabled": False,
         "class_counts": counts,
         "representations": {},
         "successful_detector": False,

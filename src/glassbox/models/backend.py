@@ -495,6 +495,60 @@ def completion_hidden_states(
     return vectors, hidden_count, feature_layer, prompt_mode, prompt_text
 
 
+def completion_prefix_hidden_states(
+    loaded: LoadedModel,
+    question: str,
+    completion: str,
+    settings: GenerationSettings,
+) -> tuple[np.ndarray, list[str], int, int, int, int, str, str]:
+    """Read one hidden-state vector and decoded text for each completion prefix.
+
+    A single teacher-forced forward pass supplies all prefix vectors. Rows are
+    aligned to the supplied completion after tokenization; callers should record
+    that decoded historical answers may not preserve their original token IDs.
+    """
+    if not isinstance(question, str) or not question.strip():
+        raise ValueError("question must be a non-empty string")
+    if not isinstance(completion, str) or not completion.strip():
+        raise ValueError("completion must be a non-empty string")
+    torch = _import_torch()
+    tokenizer = loaded.tokenizer
+    prompt_text, prompt_mode = render_prompt(tokenizer, question.strip())
+    encoded = tokenizer(prompt_text, return_tensors="pt")
+    device = module_device(loaded.model)
+    input_ids = encoded["input_ids"].to(device)
+    answer_ids = tokenizer.encode(completion.strip(), add_special_tokens=False)
+    if not answer_ids:
+        raise ValueError("completion produced no tokens")
+    prompt_count = int(input_ids.shape[1])
+    if prompt_count + len(answer_ids) > 256:
+        raise ValueError("prompt plus completion is longer than 256 tokens")
+    continuation = torch.tensor([answer_ids], device=device, dtype=input_ids.dtype)
+    sequences = torch.cat([input_ids, continuation], dim=1)
+    with torch.inference_mode():
+        forward = loaded.model(sequences, output_hidden_states=True, use_cache=False)
+    hidden_states = forward.hidden_states
+    if not hidden_states:
+        raise RuntimeError("The model returned no hidden states")
+    feature_layer = resolve_layer(len(hidden_states), settings.layer_index)
+    answer_state = hidden_states[feature_layer][0, prompt_count : prompt_count + len(answer_ids)]
+    prefix_vectors = answer_state.detach().float().cpu().numpy().copy()
+    prefix_texts = [
+        tokenizer.decode(answer_ids[:index], skip_special_tokens=True).strip()
+        for index in range(1, len(answer_ids) + 1)
+    ]
+    return (
+        prefix_vectors,
+        prefix_texts,
+        prompt_count,
+        len(answer_ids),
+        len(hidden_states),
+        feature_layer,
+        prompt_mode,
+        prompt_text,
+    )
+
+
 def render_prompt(tokenizer: Any, question: str) -> tuple[str, str]:
     """Apply the model chat template, or a plain question format when it has none."""
     template = getattr(tokenizer, "chat_template", None)
