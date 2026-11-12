@@ -1,0 +1,199 @@
+{
+  "batch_id": "pair-calibration-validation-001",
+  "brier": 0.2825697189037886,
+  "calibration_source": "saved pair-probe scores on a preselected, separately reviewed batch of Qwen generations whose questions the probe never saw",
+  "calibration_uncertainty": {
+    "binning": "equal-width bins on [0, 1]; left-closed, right-open except final bin",
+    "bins": 10,
+    "brier": 0.2825697189037886,
+    "brier_interval": {
+      "high": 0.317146539910261,
+      "low": 0.25120793025206595,
+      "note": "Percentile interval from question-group bootstrap resampling.",
+      "resamples_used": 1000
+    },
+    "class_counts": {
+      "faithful": 76,
+      "hallucinated": 533
+    },
+    "ece": 0.25852794337309437,
+    "ece_interval": {
+      "high": 0.2975686242152599,
+      "low": 0.22299596328996282,
+      "note": "Percentile interval from question-group bootstrap resampling.",
+      "resamples_used": 1000
+    },
+    "groups": 608,
+    "interval_method": "95% percentile bootstrap over question groups",
+    "n": 609,
+    "resamples_requested": 1000,
+    "resamples_used": 1000,
+    "resampling_unit": "question_group",
+    "support_status": "sufficient"
+  },
+  "calibration_validated": false,
+  "diagnostic_ece": 0.25852794337309437,
+  "diagnostic_ece_is_gate_eligible": false,
+  "diagnostic_ece_note": "Reported for information. It cannot change the gate status, and this batch is not used to choose a threshold or refit the probe.",
+  "dropped_rows": {
+    "generation_excluded": 0,
+    "no_vector": 0
+  },
+  "ece": 0.25852794337309437,
+  "ece_limit": 0.1,
+  "eligible_n": 609,
+  "factual_risk_available": false,
+  "fixed_gate_threshold": 0.65,
+  "human_reviewed": false,
+  "mean_score_by_class": {
+    "faithful": 0.7833550372827263,
+    "hallucinated": 0.7322201974654885
+  },
+  "min_per_class": 20,
+  "note": "Pre-registered generation calibration gate. Threshold stays 0.65. Each of faithful and hallucinated needs at least 20 validation rows whose labels were assigned without the probe score. Validation ECE must be at most 0.1. The test split is not used to choose the threshold or the ECE limit. UNVALIDATED and AMBIGUOUS stay out of the ECE denominator. A passing gate is the only path that may describe the score as a calibrated probability. Pair-protocol AUROC is not evidence for that claim.",
+  "pair_probe_artifact_threshold": 0.95,
+  "pair_probe_calibration_validated": true,
+  "pair_probe_files_sha256": {
+    "metadata.json": "db1e722fc4654db094e82071a8b2cfbfd2e70ab527bbe7b670d46eda140735a2",
+    "probe.joblib": "774409dd1667fa632a05e86acb734e45bb8c5298c56a66ac5d23a29edad5b1e8"
+  },
+  "pair_probe_path": "artifacts\\probes\\final-hidden-state",
+  "pair_probe_rewritten": false,
+  "pair_probe_unchanged": true,
+  "plan_sha256": "897aeaac8632899e511c16203976241bed5f46f476acd8dfd5efb516743d1e16",
+  "questions_in_scope": 800,
+  "reason": "Calibration was not validated. Validation ECE 0.259 is above 0.1.",
+  "reliability_bins": [
+    {
+      "mean_score": 0.03577517505891023,
+      "n": 131,
+      "observed_hallucinated_rate": 0.9007633587786259,
+      "range": [
+        0.0,
+        0.1
+      ]
+    },
+    {
+      "mean_score": 0.13457586419386408,
+      "n": 7,
+      "observed_hallucinated_rate": 1.0,
+      "range": [
+        0.1,
+        0.2
+      ]
+    },
+    {
+      "mean_score": null,
+      "n": 0,
+      "observed_hallucinated_rate": null,
+      "range": [
+        0.2,
+        0.3
+      ]
+    },
+    {
+      "mean_score": null,
+      "n": 0,
+      "observed_hallucinated_rate": null,
+      "range": [
+        0.3,
+        0.4
+      ]
+    },
+    {
+      "mean_score": 0.49333048814513747,
+      "n": 1,
+      "observed_hallucinated_rate": 1.0,
+      "range": [
+        0.4,
+        0.5
+      ]
+    },
+    {
+      "mean_score": 0.5920766724727597,
+      "n": 1,
+      "observed_hallucinated_rate": 0.0,
+      "range": [
+        0.5,
+        0.6
+      ]
+    },
+    {
+      "mean_score": 0.6964023292757484,
+      "n": 1,
+      "observed_hallucinated_rate": 1.0,
+      "range": [
+        0.6,
+        0.7
+      ]
+    },
+    {
+      "mean_score": 0.7382353144153045,
+      "n": 1,
+      "observed_hallucinated_rate": 0.0,
+      "range": [
+        0.7,
+        0.8
+      ]
+    },
+    {
+      "mean_score": 0.86410348469388,
+      "n": 1,
+      "observed_hallucinated_rate": 1.0,
+      "range": [
+        0.8,
+        0.9
+      ]
+    },
+    {
+      "mean_score": 0.9459133493809345,
+      "n": 466,
+      "observed_hallucinated_rate": 0.869098712446352,
+      "range": [
+        0.9,
+        1.0
+      ]
+    }
+  ],
+  "review_label_counts": {
+    "AMBIGUOUS": 11,
+    "FAITHFUL": 76,
+    "HALLUCINATED": 533,
+    "UNVALIDATED": 180
+  },
+  "review_policy": "ai_passage_review_v1",
+  "review_queue_withheld": [
+    "probe score",
+    "automatic label",
+    "right answer"
+  ],
+  "reviewer": "Claude (AI-assisted review, Cowork session)",
+  "reviewer_type": "AI",
+  "risk_status": "RISK NOT ASSESSED",
+  "rubric_sha256": "f561e7f15ff544019493f3c819d8709463614673eadc59d7902e206260d73b46",
+  "run_id": "calibration-batch-001-qwen0.5b",
+  "sample_counts": {
+    "ambiguous": 11,
+    "eligible_faithful": 76,
+    "eligible_hallucinated": 533,
+    "faithful": 76,
+    "generated": 800,
+    "hallucinated": 533,
+    "unvalidated": 180
+  },
+  "score_name": "EXPERIMENTAL PROBE SCORE",
+  "shard_count": 8,
+  "shards_analyzed": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "status": "rejected",
+  "threshold": 0.65,
+  "tuned_on_this_batch": false
+}

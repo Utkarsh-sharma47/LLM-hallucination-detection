@@ -14,3 +14,56 @@ items:
     accepted: ["National Capital Territory", "not in Maharashtra", "not Maharashtra"]
     false_claims: ["in Maharashtra", "located in Maharashtra"]
     source: "Curated local reference, claim_references_v1. Not retrieved at runtime."
+  - id: au-capital
+    claim: "Canberra is the capital of Australia. Sydney is not the capital."
+    applies_to: ["capital of Australia", "Australia's capital", "capital city of Australia"]
+    accepted: ["Canberra", "Sydney is not the capital", "Sydney isn't the capital"]
+    false_claims:
+      - "Sydney is the capital"
+      - "capital of Australia is Sydney"
+      - "capital is Sydney"
+      - "Melbourne is the capital"
+      - "capital of Australia is Melbourne"
+      - "capital is Melbourne"
+    source: "Britannica, 'Canberra' (britannica.com/place/Canberra). Curated local reference, claim_references_v1. Not retrieved at runtime."
+  - id: at-capital
+    claim: "Vienna is the capital of Austria."
+    applies_to: ["capital of Austria", "Austria's capital", "capital city of Austria"]
+    accepted: ["Vienna", "Wien"]
+    false_claims:
+      - "Salzburg is the capital"
+      - "capital of Austria is Salzburg"
+      - "capital is Salzburg"
+      - "Graz is the capital"
+      - "capital of Austria is Graz"
+      - "capital is Graz"
+      - "Innsbruck is the capital"
+      - "capital of Austria is Innsbruck"
+      - "capital is Innsbruck"
+    source: "Britannica, 'Vienna' (britannica.com/place/Vienna). Curated local reference, claim_references_v1. Not retrieved at runtime."
+  - id: newborn-bones
+    claim: "A newborn has roughly 270 to 300 bones. Some fuse with age, leaving 206 in adults."
+    applies_to:
+      - "bones does a newborn"
+      - "bones does a baby"
+      - "bones does an infant"
+      - "bones do newborns"
+      - "bones do babies"
+      - "bones are babies born with"
+      - "bones is a baby born with"
+    accepted: ["about 300", "around 300", "approximately 300", "roughly 300", "nearly 300", "300 bones", "270"]
+    false_claims:
+      - "newborn has 206"
+      - "newborns have 206"
+      - "newborn baby has 206"
+      - "baby has 206"
+      - "babies have 206"
+      - "infant has 206"
+      - "born with 206"
+    source: "Healthline, 'How Many Bones Does a Baby Have?' (healthline.com/health/how-many-bones-does-a-baby-have). Curated local reference, claim_references_v1. Not retrieved at runtime."
+  - id: planets-count
+    claim: "There are eight planets in the solar system. Pluto is classed as a dwarf planet."
+    applies_to: ["planets are in the solar system", "planets in the solar system", "nine planets"]
+    accepted: ["eight planets", "8 planets", "there are eight", "there are 8"]
+    false_claims: ["nine planets", "9 planets", "there are nine", "there are 9"]
+    source: "IAU 2006 planet definition, as summarized by Britannica, 'planet'. Curated local reference, claim_references_v1. Not retrieved at runtime."

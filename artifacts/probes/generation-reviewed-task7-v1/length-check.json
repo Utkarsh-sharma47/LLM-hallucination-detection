@@ -1,0 +1,196 @@
+{
+  "task7_test": {
+    "n": 188,
+    "faithful": 29,
+    "auroc_probe": 0.7852960312296682,
+    "auroc_length": 0.7397527651268705,
+    "corr_probe_vs_words": 0.39520594983902785,
+    "1_probe_minus_length": {
+      "point": 0.045543266102797686,
+      "ci95": [
+        -0.07011610399116501,
+        0.1628992056127859
+      ],
+      "share_resamples_above_0": 0.773
+    },
+    "2_length_stratified_probe": {
+      "bins": [
+        {
+          "bin": 0,
+          "n": 40,
+          "faithful": 14,
+          "hallucinated": 26,
+          "auroc": 0.7032967032967032
+        },
+        {
+          "bin": 1,
+          "n": 51,
+          "faithful": 10,
+          "hallucinated": 41,
+          "auroc": 0.8170731707317074
+        },
+        {
+          "bin": 2,
+          "n": 45,
+          "faithful": 2,
+          "hallucinated": 43
+        },
+        {
+          "bin": 3,
+          "n": 52,
+          "faithful": 3,
+          "hallucinated": 49
+        }
+      ],
+      "weighted_auroc_within_bins": 0.767061536694343,
+      "word_edges": [
+        2.0,
+        13.0,
+        18.0
+      ]
+    },
+    "2_length_stratified_length": {
+      "bins": [
+        {
+          "bin": 0,
+          "n": 40,
+          "faithful": 14,
+          "hallucinated": 26,
+          "auroc": 0.5728021978021979
+        },
+        {
+          "bin": 1,
+          "n": 51,
+          "faithful": 10,
+          "hallucinated": 41,
+          "auroc": 0.5073170731707317
+        },
+        {
+          "bin": 2,
+          "n": 45,
+          "faithful": 2,
+          "hallucinated": 43
+        },
+        {
+          "bin": 3,
+          "n": 52,
+          "faithful": 3,
+          "hallucinated": 49
+        }
+      ],
+      "weighted_auroc_within_bins": 0.5361017433384091,
+      "word_edges": [
+        2.0,
+        13.0,
+        18.0
+      ]
+    },
+    "3_stacked_minus_length_only": {
+      "point": 0.05248319236608101,
+      "ci95": [
+        0.01551823950439066,
+        0.09245709716813565
+      ],
+      "share_resamples_above_0": 0.997
+    }
+  },
+  "batch_001": {
+    "n": 609,
+    "faithful": 76,
+    "auroc_probe": 0.7634788189987164,
+    "auroc_length": 0.6751382442974226,
+    "corr_probe_vs_words": 0.49865165087414953,
+    "1_probe_minus_length": {
+      "point": 0.08834057470129375,
+      "ci95": [
+        0.02325513961729813,
+        0.14823821593495676
+      ],
+      "share_resamples_above_0": 0.999
+    },
+    "2_length_stratified_probe": {
+      "bins": [
+        {
+          "bin": 0,
+          "n": 29,
+          "faithful": 5,
+          "hallucinated": 24,
+          "auroc": 0.6
+        },
+        {
+          "bin": 1,
+          "n": 198,
+          "faithful": 40,
+          "hallucinated": 158,
+          "auroc": 0.7218354430379746
+        },
+        {
+          "bin": 2,
+          "n": 174,
+          "faithful": 22,
+          "hallucinated": 152,
+          "auroc": 0.7784090909090909
+        },
+        {
+          "bin": 3,
+          "n": 208,
+          "faithful": 9,
+          "hallucinated": 199,
+          "auroc": 0.6365159128978225
+        }
+      ],
+      "weighted_auroc_within_bins": 0.7030573225327551,
+      "word_edges": [
+        2.0,
+        13.0,
+        18.0
+      ]
+    },
+    "2_length_stratified_length": {
+      "bins": [
+        {
+          "bin": 0,
+          "n": 29,
+          "faithful": 5,
+          "hallucinated": 24,
+          "auroc": 0.4583333333333333
+        },
+        {
+          "bin": 1,
+          "n": 198,
+          "faithful": 40,
+          "hallucinated": 158,
+          "auroc": 0.5484177215189873
+        },
+        {
+          "bin": 2,
+          "n": 174,
+          "faithful": 22,
+          "hallucinated": 152,
+          "auroc": 0.5305023923444976
+        },
+        {
+          "bin": 3,
+          "n": 208,
+          "faithful": 9,
+          "hallucinated": 199,
+          "auroc": 0.6099944165270799
+        }
+      ],
+      "weighted_auroc_within_bins": 0.5600404440607576,
+      "word_edges": [
+        2.0,
+        13.0,
+        18.0
+      ]
+    },
+    "3_stacked_minus_length_only": {
+      "point": 0.04775599881504888,
+      "ci95": [
+        0.024816003925893015,
+        0.06814918135587388
+      ],
+      "share_resamples_above_0": 1.0
+    }
+  }
+}

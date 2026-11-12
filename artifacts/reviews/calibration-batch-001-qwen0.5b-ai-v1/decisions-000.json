@@ -1,0 +1,702 @@
+[
+[
+0,
+"HALLUCINATED",
+"Situated on the Timor Sea, Darwin",
+"Passage places Darwin on the Timor Sea; the answer says the Pacific Ocean.",
+[]
+],
+[
+1,
+"UNVALIDATED",
+"bordered by Romania to the west",
+"Answer only restates the question with Moldova and never names the western neighbour; no completed false claim.",
+[]
+],
+[
+2,
+"UNVALIDATED",
+"The film stars Joel Kinnaman as the title character",
+"Passage never links the film to a named British cinematographer; John Williams is unsupported and the link is missing.",
+[]
+],
+[
+3,
+"UNVALIDATED",
+"\"Coin Locker Girl\" (2015)",
+"Answer names an unlisted film and truncates the director name; absence is not contradiction, so unvalidated.",
+[]
+],
+[
+4,
+"FAITHFUL",
+"Shadows Over Camelot is an Arthurian-themed board game designed by Serge Laget",
+"Passage states Shadows Over Camelot was designed by Serge Laget.",
+[]
+],
+[
+5,
+"HALLUCINATED",
+"The showrunner for the fifth production season was David Mirkin",
+"Passage names David Mirkin as showrunner of season five; answer says Matt Groening and season 10.",
+[]
+],
+[
+6,
+"HALLUCINATED",
+"Maggie Cheung Man-yuk (; born 20 September 1964)",
+"Passage gives 1964 as Maggie Cheung's birth year; answer says 1982.",
+[]
+],
+[
+7,
+"HALLUCINATED",
+"It contains only one species, Indogrammodes pectinicornalis",
+"Passage identifies the one-species genus as Indogrammodes; answer says Papilio.",
+[]
+],
+[
+8,
+"UNVALIDATED",
+"based on the novel by Catherine Cookson",
+"Answer is cut off before naming an author; no completed false claim.",
+[]
+],
+[
+9,
+"HALLUCINATED",
+"which will star Hong-Kong martial arts star Donnie Yen in the title role",
+"Passage names Donnie Yen in the title role; answer says Jackie Chan.",
+[]
+],
+[
+10,
+"UNVALIDATED",
+"it serves Egged, Superbus and Dan intercity bus routes",
+"Passage names operators, not route numbers; the numbers 101 to 103 are unsupported but not directly contradicted.",
+[]
+],
+[
+11,
+"HALLUCINATED",
+"The show takes place in the Bronx, New York at Jordan Sport Barbershop",
+"Passage places the show at Jordan Sport Barbershop; answer says the New York City Sports Hall of Fame.",
+[]
+],
+[
+12,
+"HALLUCINATED",
+"originally developed by Midway Games' Chicago studio in 1992",
+"Passage gives 1992 for Mortal Kombat's origin; answer says 1984.",
+[]
+],
+[
+13,
+"HALLUCINATED",
+"What Happens in Vegas is a 2008 American comedy film",
+"Passage identifies What Happens in Vegas as the film; answer says The Notebook.",
+[]
+],
+[
+14,
+"UNVALIDATED",
+"directed by Clay Weiner",
+"Director name in the answer is truncated and not completed, so no complete false claim; unvalidated.",
+[]
+],
+[
+15,
+"FAITHFUL",
+"was an English journalist, short-story writer, poet, and novelist",
+"Kipling is English per the passage; British is a straightforward reading of that nationality.",
+[]
+],
+[
+16,
+"HALLUCINATED",
+"O' Cracker Where Art Thou?",
+"Passage names the album O' Cracker Where Art Thou?; answer names a different album.",
+[]
+],
+[
+17,
+"HALLUCINATED",
+"Inhabited since at least the 15th century BC",
+"Passage says Gaza has been inhabited since the 15th century BC; answer says 13th century.",
+[]
+],
+[
+18,
+"HALLUCINATED",
+"He died in 2001 from complications from heart surgery.",
+"Passage gives 2001 as the death year; answer says 2018.",
+[]
+],
+[
+19,
+"HALLUCINATED",
+"It aired on Fox in the United States on December 1, 2013.",
+"Passage gives December 1, 2013; answer says March 1, 2001.",
+[]
+],
+[
+20,
+"HALLUCINATED",
+"with its main campus in Manhattan, Kansas",
+"Passage places the main campus in Manhattan, Kansas; answer says Kansas City.",
+[]
+],
+[
+21,
+"UNVALIDATED",
+"The Pony Express was a mail service delivering messages, newspapers, and mail.",
+"Passage never says what is delivered to Trout Creek; trout delivery is unsupported but not contradicted.",
+[]
+],
+[
+22,
+"AMBIGUOUS",
+"features American singer-songwriter Taylor Swift on vocals, as well as Keith Urban on guitar",
+"Taylor Swift is correct but Justin Bieber contradicts Keith Urban, so supported and contradicted claims coexist.",
+[]
+],
+[
+23,
+"HALLUCINATED",
+"It runs from Sydney to Albury",
+"Passage gives Sydney to Albury; answer says Birmingham and Wolverhampton.",
+[]
+],
+[
+24,
+"UNVALIDATED",
+"Not to be confused with sister company, Kalitta Air.",
+"Passage sources conflict (division versus sister company) and never says Charters flies to and from Air.",
+[]
+],
+[
+25,
+"HALLUCINATED",
+"N Brown Group plc () is a British home shopping business based in Manchester, England.",
+"Passage places the group in Manchester; answer says New York.",
+[]
+],
+[
+26,
+"HALLUCINATED",
+"is a Canadian filmmaker and screenwriter",
+"Passage describes Harron and Parajanov as film people; answer says both are Russian composers.",
+[]
+],
+[
+27,
+"UNVALIDATED",
+"the Palace lies on the north bank of the River Thames",
+"Passage ties the Thames to the Palace of Westminster, not directly to the Aberdeen library; River Tweed is unsupported with a missing link.",
+[]
+],
+[
+28,
+"HALLUCINATED",
+"The Good Doctor is an American medical-drama television series, developed by David Shore",
+"Passage names The Good Doctor; answer says The Last of Us.",
+[]
+],
+[
+29,
+"HALLUCINATED",
+"Goals from Alan Whittle and Howard Kendall gave Everton a 2–1 victory",
+"Passage names Whittle and Kendall as scorers; answer says Alan Shearer.",
+[]
+],
+[
+30,
+"UNVALIDATED",
+"The section around the crossing of the River Ribble was never completed",
+"Answer restates the question without naming the section; no completed false claim.",
+[]
+],
+[
+31,
+"HALLUCINATED",
+"The Montreal Expos (French: \"Les Expos de Montréal\" ) were a Canadian professional baseball team",
+"Passage gives the Montreal Expos; answer says Montreal Impact.",
+[]
+],
+[
+32,
+"HALLUCINATED",
+"the 18th President of the United States from 1869 to 1877",
+"Passage identifies Ulysses S. Grant as 18th President; answer says George Washington.",
+[]
+],
+[
+33,
+"UNVALIDATED",
+"Cheryl Campbell (born 22 May 1949) is an English actor of stage, film and television.",
+"Answer is cut off before naming the actor; no completed false claim.",
+[]
+],
+[
+34,
+"HALLUCINATED",
+"AirPort is the name given to a series of products by Apple Inc.",
+"Passage shows both are Apple products; answer says they are not connected.",
+[]
+],
+[
+35,
+"FAITHFUL",
+"The Olathe Unified School District (Kansas Unified School District 233)",
+"Passage places the school in the Olathe district in Kansas; answer says Olathe, Kansas.",
+[]
+],
+[
+36,
+"UNVALIDATED",
+"Youth is a 2015 Italian comedy-drama film written and directed by Paolo Sorrentino.",
+"Passage does not name a recipient or link Christian Bale to the award; claim unsupported with a missing link.",
+[]
+],
+[
+37,
+"UNVALIDATED",
+"The Chevrolet Volt is a plug-in hybrid car manufactured by General Motors",
+"Answer gives the vehicle type rather than the car name; no completed false claim.",
+[]
+],
+[
+38,
+"FAITHFUL",
+"In 2007, he was inducted into the Rock and Roll Hall of Fame.",
+"Passage says David Lee Roth was inducted into the Rock and Roll Hall of Fame.",
+[]
+],
+[
+39,
+"HALLUCINATED",
+"which was held in Melbourne, Victoria, Australia, in 1956",
+"Passage places the 1956 Games in Melbourne; answer says Rome.",
+[]
+],
+[
+40,
+"HALLUCINATED",
+"Akaka was the first U.S. Senator of Native Hawaiian ancestry",
+"Passage says Native Hawaiian ancestry; answer says African American.",
+[]
+],
+[
+41,
+"UNVALIDATED",
+"Gillette is a brand of men's and women's safety razors",
+"Answer only repeats the name Bradley Palmer and does not name a brand; nonresponsive.",
+[]
+],
+[
+42,
+"HALLUCINATED",
+"Hayden Christensen (born April 19, 1981) is a Canadian actor and producer.",
+"Passage names Hayden Christensen; answer says David Tennant.",
+[]
+],
+[
+43,
+"HALLUCINATED",
+"feature lead vocalist Ronnie James Dio",
+"Passage names Ronnie James Dio as lead vocalist; answer says Tony Iommi.",
+[]
+],
+[
+44,
+"HALLUCINATED",
+"whose source novel of the same name was written by Mary Hayley Bell in 1959",
+"Passage identifies Whistle Down the Wind; answer says The Last of the Mohicans.",
+[]
+],
+[
+45,
+"HALLUCINATED",
+"An experience point (often abbreviated to exp or XP) is a unit of measurement",
+"Passage names the experience point as the unit; answer says level.",
+[]
+],
+[
+46,
+"UNVALIDATED",
+"Iresine is a genus of flowering plants in the amaranth family, Amaranthaceae.",
+"Passage gives no species counts for either genus, so the claimed counts are unsupported.",
+[]
+],
+[
+47,
+"UNVALIDATED",
+"In 2006, he received the Fields Medal",
+"Passage lists one medal for Okounkov and none for Goppa; absence is not contradiction, so the comparison is unsupported.",
+[]
+],
+[
+48,
+"HALLUCINATED",
+"Pinocchio's Daring Journey is a dark ride at Disneyland",
+"Passage names Pinocchio's Daring Journey; answer says a ghost ride.",
+[]
+],
+[
+49,
+"UNVALIDATED",
+"as a reviewer for \"The New Observer\"",
+"Answer does not name a publication; nonresponsive without a completed false claim.",
+[]
+],
+[
+50,
+"FAITHFUL",
+"Peterson's Magazine (1842–1898) was a popular American magazine",
+"Passage calls Peterson's Magazine American; the answer covers only that magazine but its claim is supported.",
+[]
+],
+[
+51,
+"HALLUCINATED",
+"Philip J. Fry, Professor Farnsworth, Dr. Zoidberg, Zapp Brannigan",
+"Passage lists Futurama characters voiced; The Big Bang Theory is a show, not one of them.",
+[]
+],
+[
+52,
+"UNVALIDATED",
+"leading many to regard him as one of the best lyric baritones of the late 20th century",
+"Passage never names Horace Silver; the baritone is not identified by name, so the answer is unsupported with a missing link.",
+[]
+],
+[
+53,
+"HALLUCINATED",
+"Her first solo art exhibition was in 1943.",
+"Passage gives 1943 for the first solo exhibition; answer says 1999.",
+[]
+],
+[
+54,
+"HALLUCINATED",
+"a co-founder of the shipping company DHL Worldwide Express",
+"Passage names DHL as the company co-founded by Hillblom; answer says FedEx.",
+[]
+],
+[
+55,
+"UNVALIDATED",
+"earned a Super Bowl ring",
+"Passage says Maitland earned a Super Bowl ring; the answer names a vague Super Bowl LVI award that is unsupported.",
+[]
+],
+[
+56,
+"HALLUCINATED",
+"released as the sixth single from their self-titled debut on 26 May 2014",
+"Passage gives 26 May 2014; answer says September.",
+[]
+],
+[
+57,
+"UNVALIDATED",
+"He is best known for playing the title character in the Fox television family sitcom \"Malcolm in the Middle\"",
+"Answer's actor name is truncated and no sitcom title is completed; no complete false claim.",
+[]
+],
+[
+58,
+"HALLUCINATED",
+"He studied at Lincoln College",
+"Passage says he studied at Lincoln College; answer says University of Lincoln.",
+[]
+],
+[
+59,
+"HALLUCINATED",
+"Released on 26 May 1967 in the United Kingdom",
+"Passage gives 26 May 1967 for the album release; answer says October 15, 2016.",
+[]
+],
+[
+60,
+"UNVALIDATED",
+"The screenplay was written by Tony Gilroy, Scott Z. Burns and George Nolfi",
+"Passage never names the film that has this screenplay, so the identifying link is missing and The Big Sleep is unsupported.",
+[]
+],
+[
+61,
+"HALLUCINATED",
+"plays as a striker for Premier League club Manchester United",
+"Passage says Lukaku plays for Manchester United; answer says Manchester City.",
+[]
+],
+[
+62,
+"UNVALIDATED",
+"Cornyn previously served as Chairman of the National Republican Senatorial Committee from 2007 to 2011.",
+"Answer is cut off after John and does not complete the surname; no complete claim.",
+[]
+],
+[
+63,
+"UNVALIDATED",
+"\"Korn's Groovy Pirate Ghost Mystery\" is the tenth episode of the third season",
+"Answer is cut off partway through the episode title and never states the episode number.",
+[]
+],
+[
+64,
+"HALLUCINATED",
+"born 1 October 1977 in Melbourne, Victoria",
+"Passage gives Melbourne as the birthplace; answer says Adelaide.",
+[]
+],
+[
+65,
+"UNVALIDATED",
+"Scott Derrickson (born July 16, 1966) is an American director",
+"Answer is cut off before any director is named; no complete claim.",
+[]
+],
+[
+66,
+"FAITHFUL",
+"Housing over 8,000 patients at its peak in the 1950s",
+"Passage shows 8,000 patients at St. Elizabeths versus 104 beds at PIW, so St. Elizabeths houses more.",
+[]
+],
+[
+67,
+"HALLUCINATED",
+"The song samples \"Dream On\" by American hard rock band Aerosmith.",
+"Passage says the sample is Dream On; answer says I Will Always Love You.",
+[]
+],
+[
+68,
+"HALLUCINATED",
+"Carlos Arturo Bacca Ahumada (] ; born 8 September 1986) is a Colombian professional footballer",
+"Passage names Carlos Bacca as the Colombian striker; answer says Diego Maradona.",
+[]
+],
+[
+69,
+"HALLUCINATED",
+"In the 2010 census, the population was 2,478.",
+"Passage gives 2,478 for Tonopah; answer says 1,000.",
+[]
+],
+[
+70,
+"HALLUCINATED",
+"Aikido (Japanese: 合気道 , Hepburn: aikidō ) ] is a modern Japanese martial art developed by Morihei Ueshiba",
+"Passage says Aikido; answer says Kendo.",
+[]
+],
+[
+71,
+"HALLUCINATED",
+"Common debuted in 1992 with the album \"Can I Borrow a Dollar?",
+"Passage gives Can I Borrow a Dollar?; answer says The Message.",
+[]
+],
+[
+72,
+"HALLUCINATED",
+"\"It's Time\" is a song by American rock band Imagine Dragons",
+"Passage names It's Time as the song and EP; answer says Everyday People.",
+[]
+],
+[
+73,
+"HALLUCINATED",
+"It is 4 km wide at its narrowest point",
+"Passage places the battle at the Sound (Øresund) and gives 4 km; answer puts it in the English Channel.",
+[]
+],
+[
+74,
+"UNVALIDATED",
+"Casino is a 1995 American epic crime drama film directed by Martin Scorsese",
+"Answer is cut off before naming the film; no completed claim.",
+[]
+],
+[
+75,
+"HALLUCINATED",
+"Launched in September 1997 to collect fares",
+"Passage shows the Octopus card in 1997 and the Nol Card in August 2009, so the answer's order is reversed.",
+[]
+],
+[
+76,
+"HALLUCINATED",
+"Georges Henri Rouault (] ; 27 May 1871 – 13 February 1958) was a French painter",
+"Passage names Rouault for Fauvism and Expressionism; answer says Claude Monet.",
+[]
+],
+[
+77,
+"HALLUCINATED",
+"headquartered in Geneva, Switzerland",
+"Passage places STMicroelectronics headquarters in Geneva; answer says New York.",
+[]
+],
+[
+78,
+"HALLUCINATED",
+"\"Sugar Baby\" is the final song on Bob Dylan's 2001 album \"Love and Theft\"",
+"Passage names Bob Dylan's Love and Theft; answer says an album by The Police.",
+[]
+],
+[
+79,
+"HALLUCINATED",
+"The Pescara Circuit was a 16.032 mi road race course",
+"Passage gives 16.032 miles; answer says 1.5 kilometers.",
+[]
+],
+[
+80,
+"HALLUCINATED",
+"The Hurricane Heist, originally entitled Category 5",
+"Passage gives Category 5 as the original title; answer says The Hurricane.",
+[]
+],
+[
+81,
+"HALLUCINATED",
+"Beetlejuice is a 1988 American comedy-fantasy film directed by Tim Burton",
+"Passage names Tim Burton as director; answer says Robert Zemeckis.",
+[]
+],
+[
+82,
+"FAITHFUL",
+"Bellis is a genus of flowering plants in the sunflower family.",
+"Bellis is a flowering plant and Syzygium jambos is a tree, so both being plants is a straightforward reading.",
+[]
+],
+[
+83,
+"HALLUCINATED",
+"since its inception in 1997",
+"Passage gives 1997 as the inception year; answer says 1996.",
+[]
+],
+[
+84,
+"HALLUCINATED",
+"Breach of Promise is a 1942 British romance film",
+"Passage names Breach of Promise as the 1942 British romance film; answer says The Man Who Knew Too Much.",
+[]
+],
+[
+85,
+"HALLUCINATED",
+"in Stephen King's novel, \"The Eyes of the Dragon\"",
+"Passage names The Eyes of the Dragon; answer says The Shining.",
+[]
+],
+[
+86,
+"HALLUCINATED",
+"a full-time satellite station licensed to Marco Island",
+"Passage says Marco Island; answer says Miami.",
+[]
+],
+[
+87,
+"HALLUCINATED",
+"Fantastic Beasts and Where to Find Them is a 2001 book written by British author J. K. Rowling",
+"Passage names Fantastic Beasts and Where to Find Them; answer says Harry Potter and the Sorcerer's Stone.",
+[]
+],
+[
+88,
+"HALLUCINATED",
+"the programme is broadcast from Washington with either Katty Kay or Laura Trevelyan",
+"Passage names Katty Kay or Laura Trevelyan; answer says John A. Corbett born in 1945.",
+[]
+],
+[
+89,
+"HALLUCINATED",
+"The series was created by Ryan Murphy, Brad Falchuk, and Ian Brennan",
+"Passage names Glee and its creators; answer says The Crown created by David Lean.",
+[]
+],
+[
+90,
+"HALLUCINATED",
+"William Melvin Hicks (December 16, 1961 – February 26, 1994)",
+"Passage gives Bill Hicks born in 1961; answer says 1956.",
+[]
+],
+[
+91,
+"HALLUCINATED",
+"Steven Universe is an American animated television series created by Rebecca Sugar",
+"Passage names Steven Universe; answer says The Office.",
+[]
+],
+[
+92,
+"FAITHFUL",
+"a football stadium in the Mount Florida area of Glasgow, Scotland",
+"Passage places Hampden Park in Glasgow, Scotland.",
+[]
+],
+[
+93,
+"HALLUCINATED",
+"\"Just One Fix\" is the third single from industrial metal band Ministry's 1992 album",
+"Passage names Ministry; answer says The Clash.",
+[]
+],
+[
+94,
+"HALLUCINATED",
+"Jefferson County is a county located in the U.S. state of Kentucky. It is the most populous county in Kentucky",
+"Passage names Jefferson County as most populous; answer says Franklin County.",
+[]
+],
+[
+95,
+"HALLUCINATED",
+"conference and national champion Illinois",
+"Passage names Illinois as 1914 conference champion; answer says Michigan.",
+[]
+],
+[
+96,
+"HALLUCINATED",
+"Nicknamed \"The Magician\", Murphy",
+"Passage names Shaun Murphy as The Magician; answer says The Snooker King.",
+[]
+],
+[
+97,
+"HALLUCINATED",
+"filed for bankruptcy in 2006",
+"Passage gives 2006 for the bankruptcy; answer says 2019.",
+[]
+],
+[
+98,
+"UNVALIDATED",
+"He was known as the 'Earl of Oxford Street'.",
+"Answer restates the slogan instead of naming a popularizer's alias; no completed false claim.",
+[]
+],
+[
+99,
+"FAITHFUL",
+"Dean Ray Koontz (born July 9, 1945)",
+"Koontz was born in 1945 and Housman in 1859, so Koontz is more recent.",
+[]
+]
+]
