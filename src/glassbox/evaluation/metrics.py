@@ -84,7 +84,8 @@ def early_warning_lead(flags: Sequence[bool], event_index: int) -> int | None:
     before the event. Zero means the first timely flag lands on the event step.
     The result is ``None`` when no flag occurs at or before the event.
 
-    This is bookkeeping for a label definition that the project has not settled.
+    The event index must come from the registered prefix evidence labels; this
+    helper only measures the distance to the first prior or same-step flag.
     It does not decide whether a flag is a true positive.
     """
     if isinstance(event_index, bool) or not isinstance(event_index, int):
