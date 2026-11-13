@@ -10,6 +10,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+
+try:
+    import msvcrt
+except ImportError:
+    msvcrt = None
+
 import numpy as np
 
 from glassbox.activations.extract import (
@@ -138,6 +148,7 @@ class GenerationSettings:
     position: str = "last_prompt_token"
     capture_all_layers: bool = False
     capture_mode: str = "final"
+    capture_hidden_states: bool = True
     distribution_export: str = "topk"
 
     def __post_init__(self) -> None:
@@ -157,8 +168,8 @@ class GenerationSettings:
             raise ValueError("distribution_export must be topk or full")
         if isinstance(self.layer_index, bool) or not isinstance(self.layer_index, int):
             raise ValueError("layer_index must be an integer")
-        if self.capture_mode not in {"final", "generated", "selected", "all"}:
-            raise ValueError("capture_mode must be final, generated, selected, or all")
+        if self.capture_mode not in {"none", "final", "generated", "selected", "all"}:
+            raise ValueError("capture_mode must be none, final, generated, selected, or all")
 
 
 @dataclass
@@ -225,6 +236,9 @@ class GenerationResult:
     capture_mode: str = "final"
     capture_bytes: int = 0
     capture_note: str = ""
+    analysis_latency_seconds: float = 0.0
+    analysis_forward_calls: int = 0
+    transient_hidden_state_bytes: int = 0
 
 
 class HuggingFaceBackend:
@@ -362,15 +376,46 @@ def run_generation(
     else:
         sequences = model_inputs["input_ids"]
     answer = tokenizer.decode(new_ids, skip_special_tokens=True).strip() if new_ids else ""
-    feature, layer_vectors, hidden_count, feature_layer, hidden_ok, note, answer_mean, capture = (
-        _read_hidden_states(
+
+    skip_analysis = (settings.capture_mode == "none") or (not settings.capture_hidden_states)
+    if skip_analysis:
+        analysis_latency = 0.0
+        analysis_calls = 0
+        feature = None
+        layer_vectors = {}
+        hidden_count = None
+        feature_layer = None
+        hidden_ok = False
+        note = "Hidden-state analysis skipped by capture configuration."
+        answer_mean = None
+        capture = {
+            "mode": settings.capture_mode,
+            "spans": {},
+            "nbytes": 0,
+            "transient_bytes": 0,
+            "note": "Analysis skipped.",
+        }
+    else:
+        analysis_start = time.perf_counter()
+        (
+            feature,
+            layer_vectors,
+            hidden_count,
+            feature_layer,
+            hidden_ok,
+            note,
+            answer_mean,
+            capture,
+        ) = _read_hidden_states(
             model,
             sequences,
             prompt_tokens=prompt_tokens,
             generated_count=len(new_ids),
             settings=settings,
         )
-    )
+        analysis_latency = time.perf_counter() - analysis_start
+        analysis_calls = int(capture.get("forward_calls", 0))
+
     return GenerationResult(
         question=question.strip(),
         prompt_text=prompt_text,
@@ -400,6 +445,9 @@ def run_generation(
         capture_mode=str(capture["mode"]),
         capture_bytes=int(capture["nbytes"]),
         capture_note=str(capture["note"]),
+        analysis_latency_seconds=analysis_latency,
+        analysis_forward_calls=analysis_calls,
+        transient_hidden_state_bytes=int(capture.get("transient_bytes", 0)),
     )
 
 
@@ -445,6 +493,60 @@ def completion_hidden_states(
     if not ok or hidden_count is None or feature_layer is None:
         raise RuntimeError(note or "Hidden states were unavailable")
     return vectors, hidden_count, feature_layer, prompt_mode, prompt_text
+
+
+def completion_prefix_hidden_states(
+    loaded: LoadedModel,
+    question: str,
+    completion: str,
+    settings: GenerationSettings,
+) -> tuple[np.ndarray, list[str], int, int, int, int, str, str]:
+    """Read one hidden-state vector and decoded text for each completion prefix.
+
+    A single teacher-forced forward pass supplies all prefix vectors. Rows are
+    aligned to the supplied completion after tokenization; callers should record
+    that decoded historical answers may not preserve their original token IDs.
+    """
+    if not isinstance(question, str) or not question.strip():
+        raise ValueError("question must be a non-empty string")
+    if not isinstance(completion, str) or not completion.strip():
+        raise ValueError("completion must be a non-empty string")
+    torch = _import_torch()
+    tokenizer = loaded.tokenizer
+    prompt_text, prompt_mode = render_prompt(tokenizer, question.strip())
+    encoded = tokenizer(prompt_text, return_tensors="pt")
+    device = module_device(loaded.model)
+    input_ids = encoded["input_ids"].to(device)
+    answer_ids = tokenizer.encode(completion.strip(), add_special_tokens=False)
+    if not answer_ids:
+        raise ValueError("completion produced no tokens")
+    prompt_count = int(input_ids.shape[1])
+    if prompt_count + len(answer_ids) > 256:
+        raise ValueError("prompt plus completion is longer than 256 tokens")
+    continuation = torch.tensor([answer_ids], device=device, dtype=input_ids.dtype)
+    sequences = torch.cat([input_ids, continuation], dim=1)
+    with torch.inference_mode():
+        forward = loaded.model(sequences, output_hidden_states=True, use_cache=False)
+    hidden_states = forward.hidden_states
+    if not hidden_states:
+        raise RuntimeError("The model returned no hidden states")
+    feature_layer = resolve_layer(len(hidden_states), settings.layer_index)
+    answer_state = hidden_states[feature_layer][0, prompt_count : prompt_count + len(answer_ids)]
+    prefix_vectors = answer_state.detach().float().cpu().numpy().copy()
+    prefix_texts = [
+        tokenizer.decode(answer_ids[:index], skip_special_tokens=True).strip()
+        for index in range(1, len(answer_ids) + 1)
+    ]
+    return (
+        prefix_vectors,
+        prefix_texts,
+        prompt_count,
+        len(answer_ids),
+        len(hidden_states),
+        feature_layer,
+        prompt_mode,
+        prompt_text,
+    )
 
 
 def render_prompt(tokenizer: Any, question: str) -> tuple[str, str]:
@@ -655,7 +757,14 @@ def _read_hidden_states(
             False,
             str(exc),
             None,
-            {"mode": settings.capture_mode, "spans": {}, "nbytes": 0, "note": str(exc)},
+            {
+                "mode": settings.capture_mode,
+                "spans": {},
+                "nbytes": 0,
+                "transient_bytes": 0,
+                "forward_calls": 0,
+                "note": str(exc),
+            },
         )
     try:
         with torch.inference_mode():
@@ -674,6 +783,8 @@ def _read_hidden_states(
                     "mode": settings.capture_mode,
                     "spans": {},
                     "nbytes": 0,
+                    "transient_bytes": 0,
+                    "forward_calls": 1,
                     "note": "Hidden-state forward pass ran out of memory.",
                 },
             )
@@ -689,6 +800,8 @@ def _read_hidden_states(
                 "mode": settings.capture_mode,
                 "spans": {},
                 "nbytes": 0,
+                "transient_bytes": 0,
+                "forward_calls": 1,
                 "note": f"Hidden-state forward pass failed: {exc}",
             },
         )
@@ -706,6 +819,8 @@ def _read_hidden_states(
                 "mode": settings.capture_mode,
                 "spans": {},
                 "nbytes": 0,
+                "transient_bytes": 0,
+                "forward_calls": 1,
                 "note": "The model returned no hidden states.",
             },
         )
@@ -744,6 +859,11 @@ def _read_hidden_states(
             capture_note = f"Token span capture failed: {exc}"
 
     capture_bytes = sum(span.nbytes for span in token_spans.values())
+    seq_len = int(sequences.shape[1])
+    num_layers = len(hidden_states)
+    dim = int(hidden_states[0].shape[2]) if num_layers > 0 else 0
+    elem_size = getattr(hidden_states[0], "element_size", lambda: 4)() if num_layers > 0 else 4
+    transient_bytes = seq_len * num_layers * dim * elem_size
 
     return (
         feature,
@@ -757,6 +877,8 @@ def _read_hidden_states(
             "mode": settings.capture_mode,
             "spans": token_spans,
             "nbytes": capture_bytes,
+            "transient_bytes": transient_bytes,
+            "forward_calls": 1,
             "note": capture_note or "Capture completed.",
         },
     )

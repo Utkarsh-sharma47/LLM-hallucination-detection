@@ -1,9 +1,7 @@
-"""Issue #7: score earlier generated pieces without publishing a lead time.
+"""Score generated prefixes when features and evidence labels are available.
 
-The event definition is recorded here and in docs/ROADMAP.md. No run stores
-per-prefix evidence labels yet, so ``early_warning_lead`` stays null.
-This measurement is not a calibrated risk and is not evidence for the
-pair-protocol AUROC.
+Lead time is emitted only when each scored position has a stored evidence label
+from the registered protocol. This is not a calibrated factuality risk.
 """
 
 from __future__ import annotations
@@ -19,8 +17,8 @@ from glassbox.evaluation.metrics import early_warning_lead
 from glassbox.probes.generation_eval import PROTECTED_PROBE_NAMES, generation_experiment_dir
 
 EVENT_PROTOCOL_ID = "generation_prefix_evidence_v1"
-# Per-prefix labels are not stored on any run. Do not publish a lead time.
-EVENT_MEASUREMENT_ENABLED = False
+# Measurement is supported, but remains null on individual records without labels.
+EVENT_MEASUREMENT_ENABLED = True
 EVENT_DEFINITION = (
     "The hallucination event index is the smallest generated-piece index i such that "
     "the answer prefix through piece i is labeled HALLUCINATED by the generation "
@@ -52,6 +50,7 @@ def score_generated_positions(
     *,
     event_index: int | None = None,
     threshold: float = PAIR_THRESHOLD,
+    prefix_labels: Sequence[str] | None = None,
 ) -> dict[str, object]:
     """Score every generated piece of one sequence. Does not load Qwen.
 
@@ -61,40 +60,46 @@ def score_generated_positions(
     matrix = np.asarray(piece_vectors, dtype=np.float64)
     if matrix.ndim != 2 or matrix.shape[0] < 2:
         raise ValueError("piece_vectors must contain at least two generated pieces")
+    if not np.isfinite(threshold) or not 0.0 <= threshold <= 1.0:
+        raise ValueError("threshold must be a finite probability in [0, 1]")
+    if prefix_labels is not None and len(prefix_labels) != matrix.shape[0]:
+        raise ValueError("prefix_labels must have one evidence label per generated piece")
+    derived_event = (
+        event_index_from_prefix_labels(prefix_labels) if prefix_labels is not None else None
+    )
+    if event_index is not None and event_index != derived_event:
+        raise ValueError("event_index must match the first HALLUCINATED prefix label")
     scores = [float(scorer(matrix[index])) for index in range(matrix.shape[0])]
     if any(not np.isfinite(score) or score < 0.0 or score > 1.0 for score in scores):
         raise ValueError("position scores must be finite probabilities in [0, 1]")
     flags = [score >= threshold for score in scores]
-    lead = None
-    stored_event = None
-    if EVENT_MEASUREMENT_ENABLED and event_index is not None:
-        stored_event = event_index
-        lead = early_warning_lead(flags, event_index)
-    elif event_index is not None and not EVENT_MEASUREMENT_ENABLED:
-        # The helper is still exercised so a missing flag stays null, but the
-        # published field remains unset until prefix labels exist on a run.
-        _ = early_warning_lead(flags, event_index)
+    stored_event = derived_event if prefix_labels is not None else None
+    lead = (
+        early_warning_lead(flags, stored_event)
+        if prefix_labels is not None and stored_event is not None
+        else None
+    )
     return {
         "protocol": EVENT_PROTOCOL_ID,
         "event_definition": EVENT_DEFINITION,
-        "event_measurement_enabled": EVENT_MEASUREMENT_ENABLED,
+        "event_measurement_enabled": EVENT_MEASUREMENT_ENABLED and prefix_labels is not None,
         "event_index": stored_event,
+        "prefix_labels": list(prefix_labels) if prefix_labels is not None else None,
         "position_scores": scores,
         "flags": flags,
         "threshold": threshold,
         "early_warning_lead": lead,
         "n_positions": int(matrix.shape[0]),
-        "note": (
-            "early_warning_lead stays null until a run stores per-prefix evidence labels. "
-            "This is not a calibrated factual-risk score."
-        ),
+        "note": "Lead time requires one stored evidence label per scored position and a validation-selected prefix-probe threshold. This is not a calibrated factual-risk score.",
     }
 
 
 def early_warning_command(args: object) -> int:
-    """Score stored piece vectors. Does not load Qwen or publish a lead time."""
+    """Apply the saved prefix probe to stored prefix features and evidence labels."""
     import json
     import sys
+
+    import joblib
 
     from glassbox.evaluation.records import write_json
 
@@ -110,29 +115,48 @@ def early_warning_command(args: object) -> int:
             raise FileExistsError(f"Refusing to overwrite {directory}")
         payload = json.loads(Path(args.scores).read_text(encoding="utf-8"))
         vectors = np.asarray(payload["piece_vectors"], dtype=np.float64)
-        event_index = payload.get("event_index")
-        threshold = float(payload.get("threshold", PAIR_THRESHOLD))
-
-        def _score(vector: np.ndarray) -> float:
-            values = np.asarray(vector, dtype=np.float64)
-            return float(np.clip(values.mean(), 0.0, 1.0))
+        labels = payload.get("prefix_labels")
+        valid_labels = {"FAITHFUL", "HALLUCINATED", "UNVALIDATED", "AMBIGUOUS"}
+        if not isinstance(labels, list) or not all(
+            isinstance(label, str) and label in valid_labels for label in labels
+        ):
+            raise ValueError(
+                "scores JSON must include prefix_labels from the registered evidence protocol"
+            )
+        probe_directory = Path(
+            getattr(args, "probe", None) or (artifacts / "probes" / "early-warning-task7-ai-v1-001")
+        )
+        bundle_path = (
+            probe_directory
+            if probe_directory.is_file()
+            else probe_directory / "prefix_probe.joblib"
+        )
+        bundle = joblib.load(bundle_path)
+        if not isinstance(bundle, dict) or "probe" not in bundle or "threshold" not in bundle:
+            raise ValueError(f"Invalid prefix-probe bundle: {bundle_path}")
+        probe = bundle["probe"]
+        threshold = float(bundle["threshold"])
+        if vectors.ndim != 2 or vectors.shape[1] != int(getattr(probe, "n_features_in_", -1)):
+            raise ValueError("piece_vectors do not match the saved prefix probe feature dimension")
 
         result = score_generated_positions(
             vectors,
-            _score,
-            event_index=None if event_index is None else int(event_index),
+            lambda vector: float(probe.predict_proba(vector.reshape(1, -1))[0, 1]),
             threshold=threshold,
+            prefix_labels=labels,
         )
-        result["probe_applied"] = False
-        result["score_source"] = "clipped_mean_of_stored_vector"
-        result["note"] = (
-            "position_scores are the clipped mean of each stored vector, not a saved probe. "
-            "early_warning_lead stays null until a run stores per-prefix evidence labels. "
-            "This is not a calibrated factual-risk score."
-        )
-        result.update(record_without_event())
+        result["probe_applied"] = True
+        result["score_source"] = str(bundle_path)
+        result["threshold_selected_on"] = "validation prefix labels only"
+        result["question_id"] = payload.get("question_id")
+        result["probe_layer"] = bundle.get("layer_index")
         write_json(directory / "report.json", result, root=artifacts)
-        print("early_warning_lead stays null; event measurement is not enabled")
+        np.savez_compressed(
+            directory / "prefix_features.npz",
+            piece_vectors=vectors.astype(np.float32),
+            prefix_labels=np.asarray(labels),
+        )
+        print(f"Early-warning lead: {result['early_warning_lead']}")
         print(f"Wrote {directory / 'report.json'}")
         return 0
     except (OSError, ValueError, FileNotFoundError, json.JSONDecodeError) as exc:
@@ -145,7 +169,7 @@ def record_without_event(metrics: dict[str, object] | None = None) -> dict[str, 
     payload = {
         "early_warning_lead": None,
         "event_definition": EVENT_DEFINITION,
-        "event_measurement_enabled": EVENT_MEASUREMENT_ENABLED,
+        "event_measurement_enabled": False,
         "event_protocol": EVENT_PROTOCOL_ID,
     }
     if metrics is not None:

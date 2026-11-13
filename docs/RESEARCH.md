@@ -241,7 +241,7 @@ The generation-001 evidence-labeled rows are a different picture. Faithful and h
 
 A 2400-question expansion plan keeps the 001 question ids in their original knowledge-group splits and would add 336 new validation and 336 new test questions. Known validation labels remain 14 faithful and 7 hallucinated. The 20-per-class target is not met until those new answers are generated or a human review cites passage evidence. Unvalidated rows were not converted into binary labels. The review command writes an append-only JSONL history beside the frozen `review_queue.json`.
 
-Issue #18 stays rejected: validation still has 7 hallucinated rows. The gate reads pair-probe scores only. A generation-probe score, including a score that looks calibrated, does not open it, and pair-protocol Platt scaling does not mark the generation probe calibrated.
+Issue #18 remains rejected. The updated, user-reviewed task-7 decisions have 44 faithful and 219 hallucinated validation answers. The gate applies the frozen 0.65 threshold to pair-probe scores and excludes question IDs in the pair probe's recorded train, validation, or test splits. That leaves 16 faithful and 84 hallucinated validation answers, below the 20-per-class minimum. The formal gate ECE is therefore null; a diagnostic ECE on those 100 non-overlapping rows is 0.256, above the 0.10 limit, and cannot be used to accept the gate. The pair probe artifact records its own operating threshold as 0.95; it was not edited. The result is `artifacts/experiments/task7-halueval-generation-2400-001/reviewed-calibration-gate.json`, and the user's review attestation is append-only at `artifacts/reviews/task7-halueval-generation-2400-001-ai-v1/human-review-attestations.jsonl`. A generation-probe score, including one that looks calibrated, does not satisfy this pair-probe gate, and pair-protocol Platt scaling does not calibrate the generation-trained probe.
 
 `build-generation-v2` joins those cached 001 rows onto the 2400-question plan. It does not generate the missing 1680 answers, does not invent human labels, and does not rewrite 001. Mean-pool comparison on the identical split still requires stored mean vectors, which 001 did not keep.
 
@@ -260,7 +260,7 @@ On generation-001, only the saved last-piece vector exists. Mean-pool and the ex
 
 ## Early-warning event (issue #7)
 
-The event definition is in [ROADMAP.md](ROADMAP.md) task 8. No run stores per-prefix evidence labels, so no lead-time number is published. Scoring two generated pieces from stored vectors does not load Qwen and does not change the pair threshold.
+The event definition is in [ROADMAP.md](ROADMAP.md) task 8. The Task 7 early-warning run stores per-prefix feature/evidence records and reports held-out lead time. Its threshold flags all faithful test answers, so the result is exploratory and not a useful detector. Ordinary live CLI answers still have no protocol-derived onset labels, so their per-answer lead-time field remains null. The `eval-early-warning` command applies the saved prefix probe to stored per-prefix vectors and labels; it does not load Qwen or change the pair threshold.
 
 ```bash
 python -m glassbox --offline eval-saved-probe --max-questions 200 --seed 0 \

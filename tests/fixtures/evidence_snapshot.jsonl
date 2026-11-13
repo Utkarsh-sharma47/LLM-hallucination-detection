@@ -1,0 +1,8 @@
+{"id": "atlas-canberra", "locator": "fixture://atlas/canberra", "text": "Canberra is the capital of Australia. The city lies in the Australian Capital Territory.", "source_date": "2024-01-10"}
+{"id": "atlas-sydney", "locator": "fixture://atlas/sydney", "text": "Sydney is not the capital of Australia. It is the capital of New South Wales.", "source_date": "2024-01-10"}
+{"id": "atlas-paraphrase", "locator": "fixture://atlas/paraphrase", "text": "The Australian capital city is Canberra.", "source_date": "2023-06-01"}
+{"id": "atlas-vague", "locator": "fixture://atlas/vague", "text": "Many visitors ask about the capital of Australia and its famous cities.", "source_date": "2024-01-10"}
+{"id": "tower-a", "locator": "fixture://tower/a", "text": "The tower is 300 metres tall.", "source_date": "2024-02-01"}
+{"id": "tower-b", "locator": "fixture://tower/b", "text": "The tower is not 300 metres tall; it measures 330 metres.", "source_date": "2024-03-01"}
+{"id": "office-old", "locator": "fixture://gov/old", "text": "The president of Examplestan is Alice Smith.", "source_date": "2015-01-01"}
+{"id": "office-undated", "locator": "fixture://gov/undated", "text": "The treasurer of Examplestan is Bob Jones."}

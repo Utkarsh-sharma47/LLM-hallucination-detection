@@ -7,6 +7,7 @@ and factuality verification into a clean terminal presentation.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,8 @@ import numpy as np
 from glassbox.analysis.capture import representation_change
 from glassbox.analysis.claims import load_catalog, verify_answer
 from glassbox.analysis.protocol import account_probe
+from glassbox.analysis.retrieval import RetrievalClient, verify_answer_with_retrieval
+from glassbox.config import repo_root
 from glassbox.models.backend import GenerationResult
 from glassbox.probes.store import LoadedProbe
 from glassbox.reporting import TurnRecord
@@ -33,6 +36,7 @@ class GlassBoxReport:
     turn: TurnRecord
     probe: LoadedProbe | None
     catalog_path: Path | None
+    retrieval_client: RetrievalClient | None = None
 
     def to_text(self) -> str:
         """Return the 10-section terminal report."""
@@ -84,6 +88,8 @@ class GlassBoxReport:
             "token_alternatives": self._token_alternatives_json(),
             "generation_config": self._generation_config_json(),
             "hidden_state_metadata": self._hidden_state_metadata_json(),
+            "layer_analysis": self._layer_analysis_json(),
+            "early_warning": self._early_warning_json(),
             "probe": self._probe_json(),
             "calibrated_hallucination_probability": self._validated_hallucination_probability(),
             "factuality": self._factuality_json(),
@@ -143,23 +149,43 @@ class GlassBoxReport:
 
     def _factuality_section(self) -> str:
         catalog = load_catalog(self.catalog_path)
-        claims = verify_answer(self.answer, catalog)
+        if self.retrieval_client is not None:
+            claims = verify_answer_with_retrieval(
+                self.answer, catalog, retrieval_client=self.retrieval_client, question=self.question
+            )
+        else:
+            claims = verify_answer(self.answer, catalog, self.question)
 
         counts = claims.get("counts", {})
         overall = claims.get("overall", "UNVALIDATED")
         note = claims.get("note", "")
+        evidence_source = claims.get("evidence_source", "none")
 
         lines = [
             f"Overall status: {overall}",
+            f"Evidence source: {evidence_source}",
             f"Number of claims: {claims.get('claim_count', 0)}",
             f"Verified claims: {counts.get('FAITHFUL', 0)}",
             f"Hallucinated claims: {counts.get('HALLUCINATED', 0)}",
             f"Ambiguous claims: {counts.get('AMBIGUOUS', 0)}",
             f"Unvalidated claims: {counts.get('UNVALIDATED', 0)}",
-            f"Reference: {self.catalog_path or 'NOT AVAILABLE'}",
-            "",
-            note,
         ]
+        if self.retrieval_client is not None:
+            lines.extend(
+                [
+                    f"Supported (retrieval): {counts.get('SUPPORTED', 0)}",
+                    f"Contradicted (retrieval): {counts.get('CONTRADICTED', 0)}",
+                    f"Conflicting (retrieval): {counts.get('CONFLICTING', 0)}",
+                    f"Unverified (retrieval): {counts.get('UNVERIFIED', 0)}",
+                ]
+            )
+        lines.extend(
+            [
+                f"Reference: {self.catalog_path or 'NOT AVAILABLE'}",
+                "",
+                note,
+            ]
+        )
 
         # Show individual claims
         claim_list = claims.get("claims", [])
@@ -182,7 +208,10 @@ class GlassBoxReport:
             f"Hidden-state dimension: {int(gen.feature.shape[0]) if gen.feature is not None else 'unavailable'}",
             f"Feature layer: {gen.feature_layer}",
             f"Token capture configuration: {gen.capture_mode}",
-            f"Capture bytes: {gen.capture_bytes}",
+            f"Capture bytes: {gen.capture_bytes} (budget cap: 32 MB)",
+            f"Transient hidden-state peak: {getattr(gen, 'transient_hidden_state_bytes', 0)} bytes",
+            f"Analysis forward passes: {getattr(gen, 'analysis_forward_calls', 0)}",
+            f"Analysis latency: {getattr(gen, 'analysis_latency_seconds', 0.0):.3f}s",
             f"Capture note: {gen.capture_note}",
         ]
         return "\n".join(lines)
@@ -242,47 +271,229 @@ class GlassBoxReport:
         return float(score)
 
     def _layer_section(self) -> str:
-        spans = self.generation.token_spans or {}
+        analysis = self._layer_analysis_json()
+        lines = []
+        trained_layer = analysis.get("probe_layer")
+        if trained_layer is not None:
+            layer_label = (
+                "Calibrated generation probe layer"
+                if analysis.get("compatible_generation_probe")
+                else "Probe feature layer"
+            )
+            lines.extend(
+                [
+                    f"{layer_label} (zero-indexed): {trained_layer}",
+                    f"Hidden-state layers in model: {self.generation.hidden_state_count or 'unavailable'}",
+                ]
+            )
+            for result in _report_rows(analysis.get("probe_evaluation")):
+                summary = f"{result.get('dataset')}: n={result.get('n', 'n/a')}"
+                auroc = result.get("auroc")
+                ece = result.get("ece")
+                if isinstance(auroc, (int, float)):
+                    summary += f", AUROC={auroc:.3f}"
+                if isinstance(ece, (int, float)):
+                    summary += f", ECE={ece:.3f}"
+                lines.append(summary)
+            if analysis.get("compatible_generation_probe") and analysis.get("probe_evaluation"):
+                lines.append(
+                    "Only this generation-probe layer has calibration results; no multi-layer comparison was evaluated."
+                )
+
+        spans = _report_rows(analysis.get("captured_layer_changes"))
         if not spans:
-            return "No layer-wise analysis available. Token spans not captured."
-
-        lines = ["Layer | Cosine Distance | Interpretation"]
-        lines.append("-" * 60)
-
-        for layer in sorted(spans.keys()):
-            change = representation_change(spans[layer])
-            distance = change.get("cosine_distance_first_to_last")
-            interpretation = change.get("interpretation", "")
             lines.append(
-                f"{layer:5} | {distance if distance is not None else 'n/a':15} | {interpretation[:40]}"
+                "Per-answer token spans were not captured, so representation change cannot be calculated for this run."
+            )
+            return (
+                "\n".join(lines)
+                if lines
+                else "No layer-wise analysis available: token spans were not captured and no probe layer metadata is available."
+            )
+
+        if lines:
+            lines.append("")
+        lines.extend(["Captured layer | First-to-last cosine distance | Interpretation", "-" * 75])
+
+        for layer in spans:
+            distance = layer.get("cosine_distance")
+            interpretation = layer.get("interpretation", "")
+            lines.append(
+                f"{layer.get('layer_index', 'n/a'):13} | {distance if distance is not None else 'n/a':31} | {str(interpretation)[:40]}"
             )
 
         return "\n".join(lines)
 
-    def _early_warning_section(self) -> str:
-        return (
-            "Available: no\n"
-            "Reason: No token-level probe is trained and no hallucination event is defined. "
-            "A cosine change is not a lead time."
+    def _layer_analysis_json(self) -> dict[str, Any]:
+        spans = self.generation.token_spans or {}
+        metadata = getattr(self.probe, "metadata", {}) or {}
+        account = account_probe(self.probe)
+        compatible_generation_probe = account.compatible_generation_detector
+        evaluation = metadata.get("evaluation", {}) if compatible_generation_probe else {}
+        evaluation_rows = []
+        if isinstance(evaluation, dict):
+            for key, label in (
+                ("task7_test", "Held-out task-7 test"),
+                ("calibration_batch_001", "External calibration batch 001"),
+            ):
+                metrics = evaluation.get(key)
+                if isinstance(metrics, dict):
+                    evaluation_rows.append(
+                        {
+                            "dataset": label,
+                            "n": metrics.get("n"),
+                            "auroc": metrics.get("auroc"),
+                            "ece": metrics.get("ece"),
+                        }
+                    )
+        layer_changes = []
+        for layer in sorted(spans):
+            change = representation_change(spans[layer])
+            layer_changes.append(
+                {
+                    "layer_index": int(layer),
+                    "cosine_distance": change.get("cosine_distance_first_to_last"),
+                    "interpretation": change.get("interpretation", ""),
+                }
+            )
+        return {
+            "available": bool(spans or metadata.get("layer_index") is not None),
+            "probe_layer": metadata.get("layer_index"),
+            "probe_protocol": account.protocol,
+            "compatible_generation_probe": compatible_generation_probe,
+            "hidden_state_count": self.generation.hidden_state_count,
+            "probe_evaluation": evaluation_rows,
+            "captured_layer_changes": layer_changes,
+            "interpretation_note": (
+                "Cosine distance describes representation change; it is not a hallucination score or onset time. "
+                "A probe trained at one layer does not compare probe quality across layers."
+            ),
+        }
+
+    def _early_warning_json(self) -> dict[str, Any]:
+        metadata = getattr(self.probe, "metadata", {}) or {}
+        result: dict[str, Any] = {
+            "available": False,
+            "probe_position": metadata.get("position", self.generation.position),
+            "reason": (
+                "This individual answer has no stored per-prefix scores or protocol-derived "
+                "hallucination onset label. The Task 7 results below are aggregate."
+            ),
+            "required_data": (
+                "For this answer, capture each prefix feature and its registered evidence label, then locate the first HALLUCINATED prefix."
+            ),
+        }
+        directories = []
+        probe_directory = getattr(self.probe, "directory", None)
+        # Prefer the newest immutable Task 7 evaluation, regardless of which
+        # answer-level probe is active for this turn.
+        probe_artifacts = repo_root() / "artifacts" / "probes"
+        early_warning_runs = sorted(
+            probe_artifacts.glob("early-warning-task7-ai-v1-*/early_warning_evaluation.json"),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
         )
+        directories.extend(path.parent for path in early_warning_runs)
+        if probe_directory is not None:
+            directories.append(Path(probe_directory))
+        # Backward-compatible location used by the first completed evaluation.
+        directories.append(probe_artifacts / "generation-reviewed-task7-v1-glassbox")
+        for directory in directories:
+            evaluation_path = directory / "early_warning_evaluation.json"
+            if evaluation_path.is_file():
+                try:
+                    evaluation = json.loads(evaluation_path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    evaluation = None
+                if isinstance(evaluation, dict):
+                    result["held_out_evaluation"] = evaluation
+                    break
+        return result
+
+    def _early_warning_section(self) -> str:
+        analysis = self._early_warning_json()
+        lines = [
+            "Available for this answer: no",
+            f"Probe position: {analysis.get('probe_position') or 'unavailable'}",
+            "Any probe score shown here is answer-level; AUROC and ECE do not measure warning lead time.",
+            str(analysis["reason"]),
+        ]
+        evaluation = analysis.get("held_out_evaluation")
+        if isinstance(evaluation, dict):
+            lines.append(f"For this answer: {analysis['required_data']}")
+            lead = evaluation.get("test_early_warning", {})
+            prefix = evaluation.get("test_prefix_metrics", {})
+            training = evaluation.get("training", {})
+            threshold = evaluation.get("threshold")
+            if threshold is None and isinstance(training, dict):
+                threshold = training.get("threshold")
+            rate = (
+                lead.get("faithful_answer_false_warning_rate") if isinstance(lead, dict) else None
+            )
+            flags_everything = isinstance(rate, (int, float)) and rate >= 0.95
+            if isinstance(lead, dict) and isinstance(prefix, dict):
+                lines.extend(
+                    [
+                        "",
+                        "Separate held-out Task 7 prefix evaluation:",
+                        f"  Prefix-probe threshold: {threshold if threshold is not None else 'n/a'} (separate prefix probe; not the section 7 threshold)",
+                        f"  Threshold rule: {training.get('threshold_rule') if isinstance(training, dict) and training.get('threshold_rule') else 'validation F1 only, with no limit on false warnings'}",
+                        f"  Prefix-level test AUROC: {prefix.get('auroc', 'n/a')}",
+                        f"  Hallucinated answers with a defined prefix event: {lead.get('hallucinated_answers_with_prefix_event', 'n/a')} of {lead.get('reviewed_hallucinated_answers', 'n/a')}",
+                        (
+                            "  Timely-warning coverage: not meaningful (this threshold flags every answer)"
+                            if flags_everything
+                            else f"  Timely-warning coverage: {lead.get('timely_warning_count', 'n/a')} of {lead.get('hallucinated_answers_with_prefix_event', 'n/a')} events"
+                        ),
+                        (
+                            "  Mean lead among timely warnings: not meaningful at this threshold"
+                            if flags_everything
+                            else f"  Mean lead among timely warnings: {lead.get('mean_lead_tokens_among_timely_warnings', 'n/a')} tokens (n = {lead.get('timely_warning_count', 'n/a')})"
+                        ),
+                        f"  Faithful-answer false-warning rate: {lead.get('faithful_answer_false_warning_rate', 'n/a')}",
+                        f"  Prefix labels vs reviewed labels: {lead.get('reviewed_vs_prefix_final_label_disagreements', 'n/a')} of {lead.get('test_answers_compared', 'n/a')} test answers disagree; prefix events come from the automatic labeler, not the review",
+                        "  Interpretation: exploratory only; every faithful answer is flagged at this threshold, so it is not a useful early warning."
+                        if flags_everything
+                        else "  Interpretation: exploratory only; at a usable false-warning rate few defined events are caught, so it is not a useful early warning.",
+                        "  Aggregate AI-reviewed Task 7 evaluation; not a warning measurement for this answer.",
+                    ]
+                )
+        else:
+            lines.append(f"Required for evaluation: {analysis['required_data']}")
+        return "\n".join(lines)
 
     def _conclusion_section(self) -> str:
         catalog = load_catalog(self.catalog_path)
-        claims = verify_answer(self.answer, catalog)
+        if self.retrieval_client is not None:
+            claims = verify_answer_with_retrieval(
+                self.answer, catalog, retrieval_client=self.retrieval_client, question=self.question
+            )
+        else:
+            claims = verify_answer(self.answer, catalog, self.question)
         overall = claims.get("overall", "UNVALIDATED")
 
         account = account_probe(self.probe)
+
+        evidence_status = (
+            "RETRIEVAL+AUDITED"
+            if self.retrieval_client is not None and catalog
+            else "RETRIEVAL"
+            if self.retrieval_client is not None
+            else "AVAILABLE"
+            if catalog
+            else "UNAVAILABLE"
+        )
 
         lines = [
             f"Factuality status: {overall}",
             f"Generation uncertainty: {'LOW' if self.generation.tokens and all(t.probability > 0.7 for t in self.generation.tokens) else 'MIXED'}",
             f"Probe reliability: {'CALIBRATED' if account.compatible_generation_detector else 'EXPERIMENTAL' if self.probe else 'UNAVAILABLE'}",
-            f"Evidence status: {'AVAILABLE' if catalog else 'UNAVAILABLE'}",
+            f"Evidence status: {evidence_status}",
             "",
             "Main limitations:",
             "  - Token probabilities are generation confidence, not factuality confidence",
             "  - High probability does not guarantee correctness",
-            "  - Pairwise probe is not validated for generation factuality",
+            f"  - {_probe_limitation(account, self.probe)}",
         ]
 
         return "\n".join(lines)
@@ -359,6 +570,9 @@ class GlassBoxReport:
             "capture_mode": gen.capture_mode,
             "capture_bytes": gen.capture_bytes,
             "capture_note": gen.capture_note,
+            "transient_hidden_state_bytes": getattr(gen, "transient_hidden_state_bytes", 0),
+            "analysis_latency_seconds": getattr(gen, "analysis_latency_seconds", 0.0),
+            "analysis_forward_calls": getattr(gen, "analysis_forward_calls", 0),
         }
 
     def _probe_json(self) -> dict[str, Any]:
@@ -380,13 +594,20 @@ class GlassBoxReport:
 
     def _factuality_json(self) -> dict[str, Any]:
         catalog = load_catalog(self.catalog_path)
-        claims = verify_answer(self.answer, catalog)
+        if self.retrieval_client is not None:
+            claims = verify_answer_with_retrieval(
+                self.answer, catalog, retrieval_client=self.retrieval_client, question=self.question
+            )
+        else:
+            claims = verify_answer(self.answer, catalog, self.question)
         return {
             "catalog_available": bool(catalog),
             "catalog_path": str(self.catalog_path) if self.catalog_path else None,
+            "retrieval_enabled": self.retrieval_client is not None,
             "overall_status": claims.get("overall"),
             "claim_count": claims.get("claim_count"),
             "counts": claims.get("counts"),
+            "evidence_source": claims.get("evidence_source"),
             "claims": claims.get("claims"),
         }
 
@@ -407,7 +628,7 @@ class GlassBoxReport:
 
     def _conclusion_json(self) -> dict[str, Any]:
         catalog = load_catalog(self.catalog_path)
-        claims = verify_answer(self.answer, catalog)
+        claims = verify_answer(self.answer, catalog, self.question)
         account = account_probe(self.probe)
 
         return {
@@ -424,9 +645,33 @@ class GlassBoxReport:
             "limitations": [
                 "Token probabilities are generation confidence, not factuality confidence",
                 "High probability does not guarantee correctness",
-                "Pairwise probe is not validated for generation factuality",
+                _probe_limitation(account, self.probe),
             ],
         }
+
+
+def _probe_limitation(account: Any, probe: Any) -> str:
+    """The probe caveat that matches the probe actually loaded."""
+    if not getattr(account, "compatible_generation_detector", False):
+        return "Pairwise probe is not validated for generation factuality"
+    metadata = getattr(probe, "metadata", None) or {}
+    rate = metadata.get("base_rate")
+    average = (
+        f" (about {float(rate):.0%} of answers in its validation data)"
+        if isinstance(rate, (int, float)) and not isinstance(rate, bool)
+        else ""
+    )
+    return (
+        "Generation probe calibrated on AI-reviewed, HaluEval-style questions for one model. "
+        f"Most answers in that data were hallucinated{average}, so compare a score with that "
+        "average, not with 50%. Labels come from one AI reviewer."
+    )
+
+
+def _report_rows(value: object) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, dict)]
 
 
 def build_report(
@@ -435,6 +680,7 @@ def build_report(
     turn: TurnRecord,
     probe: LoadedProbe | None = None,
     catalog_path: Path | None = None,
+    retrieval_client: RetrievalClient | None = None,
 ) -> GlassBoxReport:
     """Build a Glass Box report from generation results."""
     return GlassBoxReport(
@@ -444,4 +690,5 @@ def build_report(
         turn=turn,
         probe=probe,
         catalog_path=catalog_path,
+        retrieval_client=retrieval_client,
     )

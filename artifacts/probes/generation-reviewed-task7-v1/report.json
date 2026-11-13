@@ -1,0 +1,80 @@
+{
+  "created": "2026-11-11T18:17:36+00:00",
+  "labels": "reviews/task7-halueval-generation-2400-001-ai-v1/generated/training-index.jsonl",
+  "vectors": "experiments/task7-halueval-generation-2400-001/features.npz",
+  "reviewer_type": "AI",
+  "human_reviewed": false,
+  "train": {
+    "n": 820,
+    "faithful": 125,
+    "hallucinated": 695
+  },
+  "validation": {
+    "n": 263,
+    "faithful": 44,
+    "hallucinated": 219,
+    "used_for": "Platt calibrator only"
+  },
+  "cv_auroc_by_C": {
+    "0.001": 0.7774892780882534,
+    "0.003": 0.7754173325511828,
+    "0.01": 0.7630695793505252,
+    "0.03": 0.7522508703499488,
+    "0.1": 0.7391257917401997,
+    "0.3": 0.7308351445323531,
+    "1.0": 0.7254637534119998
+  },
+  "chosen_C": 0.001,
+  "test": {
+    "n": 188,
+    "hallucinated": 159,
+    "faithful": 29,
+    "auroc": 0.7852960312296682,
+    "auroc_95ci": [
+      0.6848529598577237,
+      0.870991513250469
+    ],
+    "ece_raw": 0.2583057737543658,
+    "ece_calibrated": 0.03994824321193025,
+    "ece_calibrated_95ci": [
+      0.033199405514074146,
+      0.0983010430241229
+    ],
+    "brier_calibrated": 0.10783505376567759,
+    "mean_score_hallucinated": 0.8543054491063526,
+    "mean_score_faithful": 0.6963039675033216
+  },
+  "baselines": {
+    "answer_length_auroc": 0.7397527651268705,
+    "shuffled_label_auroc": 0.5421817393190197,
+    "constant_base_rate": 0.8326996197718631,
+    "constant_base_rate_ece": 0.01304506107920067,
+    "note": "A constant score has AUROC 0.5 by definition. Its ECE shows how low ECE can go with zero detection."
+  },
+  "external_batch_001": {
+    "n": 609,
+    "hallucinated": 533,
+    "faithful": 76,
+    "auroc": 0.7634788189987164,
+    "auroc_95ci": [
+      0.7002260249810316,
+      0.8136903113529331
+    ],
+    "ece_raw": 0.25598774178035705,
+    "ece_calibrated": 0.0242581216462116,
+    "ece_calibrated_95ci": [
+      0.017161391256445377,
+      0.054089131721463124
+    ],
+    "brier_calibrated": 0.09886757496271185,
+    "mean_score_hallucinated": 0.866242820455957,
+    "mean_score_faithful": 0.7501601878768063
+  },
+  "verdict": {
+    "detects": true,
+    "beats_length_baseline": true,
+    "ece_within_limit": true,
+    "enough_per_class": true
+  },
+  "note": "Single AI reviewer. Test and external sets were scored once; do not retune on them."
+}

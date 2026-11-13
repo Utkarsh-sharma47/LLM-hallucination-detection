@@ -16,6 +16,7 @@ from pathlib import Path
 import numpy as np
 
 from glassbox.data.schema import Label
+from glassbox.evaluation.calibration_metrics import calibration_report
 from glassbox.evaluation.metrics import BOOTSTRAP_MIN_PER_CLASS
 from glassbox.probes.scoring import CALIBRATION_ECE_LIMIT, expected_calibration_error
 
@@ -120,6 +121,13 @@ def evaluate_generation_calibration_gate(
     )
     scores = np.asarray([float(row["probe_score"]) for row in eligible], dtype=np.float64)
     ece = expected_calibration_error(labels, scores)
+    # Issue #38: report Brier + grouped uncertainty alongside the point ECE.
+    # This never changes acceptance: threshold, ECE limit, and min-per-class
+    # above are the only gate inputs.
+    groups = [str(row.get("group_id") or row.get("question_id") or "") for row in eligible]
+    uncertainty: dict[str, object] | None = None
+    if all(groups):
+        uncertainty = calibration_report(labels, scores, groups)
     if ece > GENERATION_CALIBRATION_ECE_LIMIT:
         return _rejected(
             (
@@ -131,6 +139,7 @@ def evaluate_generation_calibration_gate(
             pair_probe_path=pair_probe_path,
             pair_probe_metadata=pair_probe_metadata,
             ece=ece,
+            uncertainty=uncertainty,
         )
     return {
         "status": "accepted",
@@ -140,6 +149,8 @@ def evaluate_generation_calibration_gate(
         "risk_status": "calibrated generation probability",
         "threshold": PAIR_THRESHOLD,
         "ece": float(ece),
+        "brier": None if uncertainty is None else uncertainty.get("brier"),
+        "calibration_uncertainty": uncertainty,
         "ece_limit": GENERATION_CALIBRATION_ECE_LIMIT,
         "min_per_class": GENERATION_CALIBRATION_MIN_PER_CLASS,
         "sample_counts": counts,
@@ -164,6 +175,7 @@ def _rejected(
     pair_probe_path: Path | None,
     pair_probe_metadata: Mapping[str, object] | None,
     ece: float | None = None,
+    uncertainty: dict[str, object] | None = None,
 ) -> dict[str, object]:
     return {
         "status": "rejected",
@@ -173,6 +185,8 @@ def _rejected(
         "risk_status": RISK_STATUS,
         "threshold": PAIR_THRESHOLD,
         "ece": ece,
+        "brier": None if uncertainty is None else uncertainty.get("brier"),
+        "calibration_uncertainty": uncertainty,
         "ece_limit": GENERATION_CALIBRATION_ECE_LIMIT,
         "min_per_class": GENERATION_CALIBRATION_MIN_PER_CLASS,
         "sample_counts": counts,

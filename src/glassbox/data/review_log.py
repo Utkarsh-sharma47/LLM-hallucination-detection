@@ -263,7 +263,7 @@ def _required_text(value: object, field: str, line_number: int) -> str:
 
 
 def _refuse_historical_artifact(path: Path) -> None:
-    resolved = str(Path(path).resolve())
+    resolved = Path(path).resolve().as_posix()
     for marker in HISTORICAL_QUEUE_MARKERS:
         if resolved.endswith(marker):
             raise ValueError(
