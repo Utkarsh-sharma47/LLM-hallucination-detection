@@ -23,6 +23,14 @@ glassbox smoke test: ok (version=0.1.0, phase=scaffold, model=Qwen/Qwen2.5-3B-In
 
 `pytest` alone does not collect `research_tests/`. CI runs both trees.
 
+## CLI analysis semantics
+
+The generation report's factuality label and evidence status are separate. A missing reference source is `UNAVAILABLE`; a configured catalog with no claim match is `NOT FOUND`; usable matching evidence is `AVAILABLE`; incomplete evidence is `INSUFFICIENT`; and contradictory/conflicting evidence is `CONTRADICTED`/`CONFLICTING`. In particular, an unmatched answer remains `UNVALIDATED` and missing evidence is not a hallucination. Catalog matching uses normalized phrase-boundary checks, not fuzzy matching, and a catalog match is not independent external verification.
+
+Capture output reports layers observed during the hidden-state forward pass separately from selected-position vectors and generated token spans retained for reuse. `capture_bytes` counts retained NumPy arrays; `token_span_bytes` reports only generated spans against their 32 MB budget. Estimated transient all-layer activation bytes are a separate estimate, not the process memory peak. `final` keeps the configured-position vector but no token spans, so layer-wise change analysis is unavailable; it requires retained token spans. `none` skips the hidden-state analysis pass.
+
+Pairwise probe predictions remain labeled experimental and not validated for generation factuality. Their score is not a factuality verdict or risk probability. A factuality probability is unavailable unless a compatible generation probe has validated calibration.
+
 ## What each tree covers
 
 `tests/` is the demo and the pair-protocol trainer:

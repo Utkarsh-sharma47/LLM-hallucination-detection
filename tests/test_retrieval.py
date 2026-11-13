@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from glassbox.analysis.claims import load_catalog, verify_answer
 from glassbox.analysis.retrieval import (
     FixtureRetrievalClient,
@@ -39,6 +41,8 @@ def test_curated_catalog_unchanged_for_known_claim() -> None:
     catalog = _catalog()
     result = verify_answer("New Delhi is the capital of India.", catalog)
     assert result["overall"] == "FAITHFUL"
+    assert result["evidence_status"] == "AVAILABLE"
+    assert result["evidence_source"] == "curated_catalog"
 
 
 def test_curated_catalog_unchanged_for_false_claim() -> None:
@@ -46,6 +50,7 @@ def test_curated_catalog_unchanged_for_false_claim() -> None:
     catalog = _catalog()
     result = verify_answer("Mumbai is the capital of India.", catalog)
     assert result["overall"] == "HALLUCINATED"
+    assert result["evidence_status"] == "CONTRADICTED"
 
 
 def test_curated_catalog_unchanged_for_unknown_claim() -> None:
@@ -53,6 +58,43 @@ def test_curated_catalog_unchanged_for_unknown_claim() -> None:
     catalog = _catalog()
     result = verify_answer("Paris is the capital of France.", catalog)
     assert result["overall"] == "UNVALIDATED"
+    assert result["evidence_status"] == "NOT FOUND"
+    assert result["evidence_source"] == "none"
+
+
+def test_missing_catalog_is_distinct_from_catalog_without_a_match() -> None:
+    """A missing reference source differs from a configured catalog with no hit."""
+    absent = verify_answer("Paris is the capital of France.", ())
+    configured_without_match = verify_answer("Paris is the capital of France.", _catalog())
+
+    assert absent["evidence_status"] == "UNAVAILABLE"
+    assert configured_without_match["evidence_status"] == "NOT FOUND"
+    assert absent["overall"] == configured_without_match["overall"] == "UNVALIDATED"
+
+
+def test_claim_catalog_rejects_unknown_schema_and_duplicate_ids(tmp_path) -> None:
+    """Catalog schema and identifiers are validated before matching."""
+    path = tmp_path / "references.yaml"
+    path.write_text("schema: unknown\nitems: []\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="claim_references_v1"):
+        load_catalog(path)
+
+    duplicate = """schema: claim_references_v1
+items:
+  - id: duplicate
+    claim: Example claim
+    accepted: [example]
+    false_claims: []
+    source: Curated fixture
+  - id: duplicate
+    claim: Another example
+    accepted: [another]
+    false_claims: []
+    source: Curated fixture
+"""
+    path.write_text(duplicate, encoding="utf-8")
+    with pytest.raises(ValueError, match="duplicate claim id"):
+        load_catalog(path)
 
 
 # ---------------------------------------------------------------------------
@@ -67,6 +109,7 @@ def test_retrieval_supports_known_fact() -> None:
         "Paris is the capital of France.", _catalog(), retrieval_client=client
     )
     assert result["overall"] == "SUPPORTED"
+    assert result["evidence_status"] == "AVAILABLE"
     assert result["evidence_source"] == "independent_retrieval"
     claims = result["claims"]
     assert len(claims) == 1
@@ -95,6 +138,7 @@ def test_retrieval_contradicts_false_fact() -> None:
     client = _make_client()
     result = verify_answer_with_retrieval("The Earth is flat.", _catalog(), retrieval_client=client)
     assert result["overall"] == "CONTRADICTED"
+    assert result["evidence_status"] == "CONTRADICTED"
     claims = result["claims"]
     assert claims[0]["status"] == "CONTRADICTED"
     assert claims[0]["provenance"][0]["relation"] == "contradicts"
@@ -150,6 +194,7 @@ def test_no_evidence_produces_unverified() -> None:
         "The moon is made of green cheese.", _catalog(), retrieval_client=client
     )
     assert result["overall"] == "UNVERIFIED"
+    assert result["evidence_status"] == "INSUFFICIENT"
 
 
 # ---------------------------------------------------------------------------
