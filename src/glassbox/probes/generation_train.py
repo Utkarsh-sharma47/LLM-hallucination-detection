@@ -771,13 +771,24 @@ def _generation_calibration_gate(
     metadata = None
     path = Path(pair_probe_dir) if pair_probe_dir is not None else None
     loaded = None
+    pair_question_ids: set[str] = set()
     if path is not None and (path / "metadata.json").is_file():
         metadata = json.loads((path / "metadata.json").read_text(encoding="utf-8"))
+        dataset = metadata.get("dataset") if isinstance(metadata, dict) else None
+        used_question_ids = dataset.get("used_question_ids") if isinstance(dataset, dict) else None
+        if isinstance(used_question_ids, dict):
+            pair_question_ids = {
+                str(question_id)
+                for split_ids in used_question_ids.values()
+                if isinstance(split_ids, list)
+                for question_id in split_ids
+                if isinstance(question_id, str) and question_id
+            }
         try:
             loaded = load_probe(path)
         except (OSError, ValueError, ProbeCompatibilityError):
             loaded = None
-    compatible = loaded is not None
+    compatible = loaded is not None and bool(pair_question_ids)
     gate_rows: list[dict[str, object]] = []
     for row in scored_rows:
         score = None
@@ -807,21 +818,23 @@ def _generation_calibration_gate(
                 "split": row.get("split"),
                 "label": row.get("label_name") or row.get("label"),
                 "probe_score": score,
-                "split_overlap": False,
+                "split_overlap": str(row.get("question_id")) in pair_question_ids,
             }
         )
-    threshold = PAIR_THRESHOLD
-    if isinstance(metadata, dict):
-        raw_threshold = metadata.get("threshold")
-        if isinstance(raw_threshold, (int, float)) and not isinstance(raw_threshold, bool):
-            threshold = float(raw_threshold)
-    return evaluate_generation_calibration_gate(
+    decision = evaluate_generation_calibration_gate(
         gate_rows,
-        threshold=threshold,
+        threshold=PAIR_THRESHOLD,
         pair_probe_metadata=metadata if isinstance(metadata, dict) else None,
         pair_probe_path=path,
         score_source="pair_probe" if compatible else None,
     )
+    decision["pair_probe_artifact_threshold"] = (
+        metadata.get("threshold") if isinstance(metadata, dict) else None
+    )
+    decision["overlapping_questions_excluded"] = sum(
+        bool(row["split_overlap"]) for row in gate_rows if row["split"] == "validation"
+    )
+    return decision
 
 
 def _slices(

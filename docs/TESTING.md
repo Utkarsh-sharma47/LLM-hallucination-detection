@@ -23,6 +23,14 @@ glassbox smoke test: ok (version=0.1.0, phase=scaffold, model=Qwen/Qwen2.5-3B-In
 
 `pytest` alone does not collect `research_tests/`. CI runs both trees.
 
+## CLI analysis semantics
+
+The generation report's factuality label and evidence status are separate. A missing reference source is `UNAVAILABLE`; a configured catalog with no claim match is `NOT FOUND`; usable matching evidence is `AVAILABLE`; incomplete evidence is `INSUFFICIENT`; and contradictory/conflicting evidence is `CONTRADICTED`/`CONFLICTING`. In particular, an unmatched answer remains `UNVALIDATED` and missing evidence is not a hallucination. Catalog matching uses normalized phrase-boundary checks, not fuzzy matching, and a catalog match is not independent external verification.
+
+Capture output reports layers observed during the hidden-state forward pass separately from selected-position vectors and generated token spans retained for reuse. `capture_bytes` counts retained NumPy arrays; `token_span_bytes` reports only generated spans against their 32 MB budget. Estimated transient all-layer activation bytes are a separate estimate, not the process memory peak. `final` keeps the configured-position vector but no token spans, so layer-wise change analysis is unavailable; it requires retained token spans. `none` skips the hidden-state analysis pass.
+
+Pairwise probe predictions remain labeled experimental and not validated for generation factuality. Their score is not a factuality verdict or risk probability. A factuality probability is unavailable unless a compatible generation probe has validated calibration.
+
 ## What each tree covers
 
 `tests/` is the demo and the pair-protocol trainer:
@@ -52,7 +60,7 @@ glassbox smoke test: ok (version=0.1.0, phase=scaffold, model=Qwen/Qwen2.5-3B-In
 | `test_length_shortcut.py` | controlled short vs sentence variants, sentence-faithful false positives reported as a format effect, threshold stays 0.65, and pair-probe metadata is not rewritten. No Qwen load in the unit tests. |
 | `test_generation_expand.py` | larger prefix splits keep known question ids, split leakage is refused, unvalidated rows are not counted as binary, and `halueval-generation-001` cannot be reused as the run id. No Qwen load. |
 | `test_generation_variants.py` | frozen last-piece vs length vs TF-IDF on one split, below-20 reports inconclusive, calibration gate rejected, historical generation run and `final-hidden-state` refused. No Qwen load. |
-| `test_early_warning.py` | issue #7: two generated pieces scored without Qwen, `early_warning_lead` stays null when the event is unset or no flag is timely, historical run ids refused. |
+| `test_early_warning.py` | issue #7: saved prefix probe scores labeled feature sequences, lead stays null without an event or timely flag, per-prefix records persist, historical run ids refused. |
 | `test_layer_compare.py` | issue #13: representations named before scoring, missing layers stay unavailable, pair-probe metadata not rewritten, `early_warning_lead` stays null. No Qwen load. |
 | `test_generation_v2.py` | v2 assembly keeps cached split membership, refuses to replace 001 answers, does not invent labels, and refuses protected run ids. No Qwen load. |
 | `test_session_view.py` | session HTML keeps `EXPERIMENTAL PROBE SCORE` and `RISK NOT ASSESSED` and does not convert a raw score into a factual-risk percentage. No Qwen load. |

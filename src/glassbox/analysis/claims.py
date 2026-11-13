@@ -14,7 +14,7 @@ import yaml
 
 from glassbox.config import repo_root
 from glassbox.data.schema import Label
-from glassbox.verification import asserts_phrase
+from glassbox.verification import asserts_phrase, normalize_question
 
 _SPLIT = re.compile(r"(?<=[.!?])\s+|\s+\band\b\s+", re.IGNORECASE)
 
@@ -28,6 +28,7 @@ class CatalogClaim:
     accepted: tuple[str, ...]
     false_claims: tuple[str, ...]
     source: str
+    applies_to: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -52,11 +53,22 @@ def load_catalog(path: Path | None = None) -> tuple[CatalogClaim, ...]:
     if not catalog_path.is_file():
         return ()
     payload = yaml.safe_load(catalog_path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
-        raise ValueError("claim catalog must be a mapping with an items list")
+    if (
+        not isinstance(payload, dict)
+        or payload.get("schema") != "claim_references_v1"
+        or not isinstance(payload.get("items"), list)
+    ):
+        raise ValueError(
+            "claim catalog must use schema claim_references_v1 and contain an items list"
+        )
     claims: list[CatalogClaim] = []
+    seen: set[str] = set()
     for raw in payload["items"]:
-        claims.append(_parse_claim(raw))
+        claim = _parse_claim(raw)
+        if claim.claim_id in seen:
+            raise ValueError(f"duplicate claim id {claim.claim_id}")
+        seen.add(claim.claim_id)
+        claims.append(claim)
     return tuple(claims)
 
 
@@ -66,10 +78,17 @@ def split_claims(answer: str) -> tuple[str, ...]:
     return tuple(piece for piece in pieces if piece)
 
 
-def verify_answer(answer: str, catalog: tuple[CatalogClaim, ...]) -> dict[str, object]:
-    """Verify each slice. The probe is not an input."""
+def verify_answer(
+    answer: str, catalog: tuple[CatalogClaim, ...], question: str | None = None
+) -> dict[str, object]:
+    """Verify each slice. The probe is not an input.
+
+    A claim with ``applies_to`` is checked only when the question contains one of those
+    phrases, so a city name in an unrelated answer is not judged against it. Without a
+    question, such claims are skipped. Claims without ``applies_to`` apply to every answer.
+    """
     if not answer.strip():
-        return _summary((), "UNVALIDATED", "The model produced no text.")
+        return _summary((), "UNVALIDATED", "The model produced no text.", catalog)
     if not catalog:
         finding = ClaimFinding(
             text=answer.strip(),
@@ -83,10 +102,12 @@ def verify_answer(answer: str, catalog: tuple[CatalogClaim, ...]) -> dict[str, o
             (finding,),
             "UNVALIDATED",
             "Verification is unavailable. No claim catalog is configured.",
+            catalog,
         )
+    active = tuple(item for item in catalog if applies_to_question(item, question))
     findings: list[ClaimFinding] = []
     for piece in split_claims(answer):
-        hits = [_match(piece, item) for item in catalog]
+        hits = [_match(piece, item) for item in active]
         hits = [hit for hit in hits if hit is not None]
         if not hits:
             findings.append(
@@ -103,7 +124,7 @@ def verify_answer(answer: str, catalog: tuple[CatalogClaim, ...]) -> dict[str, o
         findings.extend(hits)
     status = _overall(findings)
     note = _overall_note(status)
-    return _summary(tuple(findings), status, note)
+    return _summary(tuple(findings), status, note, catalog)
 
 
 def _parse_claim(raw: object) -> CatalogClaim:
@@ -126,7 +147,17 @@ def _parse_claim(raw: object) -> CatalogClaim:
         accepted=_phrases(accepted),
         false_claims=_phrases(false_claims),
         source=source.strip(),
+        applies_to=_phrases(raw.get("applies_to")),
     )
+
+
+def applies_to_question(item: CatalogClaim, question: str | None) -> bool:
+    if not item.applies_to:
+        return True
+    if not question:
+        return False
+    key = normalize_question(question)
+    return any(normalize_question(phrase) in key for phrase in item.applies_to)
 
 
 def _phrases(value: object) -> tuple[str, ...]:
@@ -135,7 +166,7 @@ def _phrases(value: object) -> tuple[str, ...]:
     if not isinstance(value, list) or not all(
         isinstance(item, str) and item.strip() for item in value
     ):
-        raise ValueError("accepted and false_claims must be lists of strings")
+        raise ValueError("accepted, false_claims and applies_to must be lists of strings")
     return tuple(item.strip() for item in value)
 
 
@@ -187,13 +218,27 @@ def _overall_note(status: str) -> str:
     return "At least one claim has no catalog evidence, or no claim matched. Missing evidence is not a hallucination."
 
 
-def _summary(findings: tuple[ClaimFinding, ...], status: str, note: str) -> dict[str, object]:
+def _summary(
+    findings: tuple[ClaimFinding, ...],
+    status: str,
+    note: str,
+    catalog: tuple[CatalogClaim, ...],
+) -> dict[str, object]:
     counts = {"FAITHFUL": 0, "HALLUCINATED": 0, "AMBIGUOUS": 0, "UNVALIDATED": 0}
     for finding in findings:
         counts[finding.status] = counts.get(finding.status, 0) + 1
+    finding_statuses = [finding.status for finding in findings]
+    evidence_status = _evidence_status(
+        finding_statuses,
+        reference_available=bool(catalog),
+    )
+    matched = any(finding.claim_id is not None for finding in findings)
     return {
         "overall": status,
         "note": note,
+        "evidence_status": evidence_status,
+        "evidence_source": "curated_catalog" if matched else "none",
+        "catalog_available": bool(catalog),
         "claim_count": len(findings),
         "counts": counts,
         "claims": [
@@ -208,3 +253,26 @@ def _summary(findings: tuple[ClaimFinding, ...], status: str, note: str) -> dict
             for item in findings
         ],
     }
+
+
+def _evidence_status(
+    statuses: list[str],
+    *,
+    reference_available: bool,
+    retrieval_available: bool = False,
+) -> str:
+    """Describe evidence coverage separately from claim factuality labels."""
+    if not reference_available and not retrieval_available:
+        return "UNAVAILABLE"
+    if not statuses or not any(status != "UNVALIDATED" for status in statuses):
+        return "INSUFFICIENT" if retrieval_available else "NOT FOUND"
+    if "AMBIGUOUS" in statuses or (
+        any(status in {"FAITHFUL", "SUPPORTED"} for status in statuses)
+        and any(status in {"HALLUCINATED", "CONTRADICTED"} for status in statuses)
+    ):
+        return "CONFLICTING"
+    if any(status in {"HALLUCINATED", "CONTRADICTED"} for status in statuses):
+        return "CONTRADICTED"
+    if any(status in {"UNVALIDATED", "UNVERIFIED"} for status in statuses):
+        return "INSUFFICIENT"
+    return "AVAILABLE"

@@ -235,6 +235,8 @@ class GenerationResult:
     token_spans: dict[int, np.ndarray] | None = None
     capture_mode: str = "final"
     capture_bytes: int = 0
+    token_span_bytes: int = 0
+    capture_position_index: int | None = None
     capture_note: str = ""
     analysis_latency_seconds: float = 0.0
     analysis_forward_calls: int = 0
@@ -392,6 +394,8 @@ def run_generation(
             "mode": settings.capture_mode,
             "spans": {},
             "nbytes": 0,
+            "token_span_bytes": 0,
+            "position_index": None,
             "transient_bytes": 0,
             "note": "Analysis skipped.",
         }
@@ -444,6 +448,8 @@ def run_generation(
         token_spans=capture["spans"],
         capture_mode=str(capture["mode"]),
         capture_bytes=int(capture["nbytes"]),
+        token_span_bytes=int(capture.get("token_span_bytes", 0)),
+        capture_position_index=capture.get("position_index"),
         capture_note=str(capture["note"]),
         analysis_latency_seconds=analysis_latency,
         analysis_forward_calls=analysis_calls,
@@ -493,6 +499,60 @@ def completion_hidden_states(
     if not ok or hidden_count is None or feature_layer is None:
         raise RuntimeError(note or "Hidden states were unavailable")
     return vectors, hidden_count, feature_layer, prompt_mode, prompt_text
+
+
+def completion_prefix_hidden_states(
+    loaded: LoadedModel,
+    question: str,
+    completion: str,
+    settings: GenerationSettings,
+) -> tuple[np.ndarray, list[str], int, int, int, int, str, str]:
+    """Read one hidden-state vector and decoded text for each completion prefix.
+
+    A single teacher-forced forward pass supplies all prefix vectors. Rows are
+    aligned to the supplied completion after tokenization; callers should record
+    that decoded historical answers may not preserve their original token IDs.
+    """
+    if not isinstance(question, str) or not question.strip():
+        raise ValueError("question must be a non-empty string")
+    if not isinstance(completion, str) or not completion.strip():
+        raise ValueError("completion must be a non-empty string")
+    torch = _import_torch()
+    tokenizer = loaded.tokenizer
+    prompt_text, prompt_mode = render_prompt(tokenizer, question.strip())
+    encoded = tokenizer(prompt_text, return_tensors="pt")
+    device = module_device(loaded.model)
+    input_ids = encoded["input_ids"].to(device)
+    answer_ids = tokenizer.encode(completion.strip(), add_special_tokens=False)
+    if not answer_ids:
+        raise ValueError("completion produced no tokens")
+    prompt_count = int(input_ids.shape[1])
+    if prompt_count + len(answer_ids) > 256:
+        raise ValueError("prompt plus completion is longer than 256 tokens")
+    continuation = torch.tensor([answer_ids], device=device, dtype=input_ids.dtype)
+    sequences = torch.cat([input_ids, continuation], dim=1)
+    with torch.inference_mode():
+        forward = loaded.model(sequences, output_hidden_states=True, use_cache=False)
+    hidden_states = forward.hidden_states
+    if not hidden_states:
+        raise RuntimeError("The model returned no hidden states")
+    feature_layer = resolve_layer(len(hidden_states), settings.layer_index)
+    answer_state = hidden_states[feature_layer][0, prompt_count : prompt_count + len(answer_ids)]
+    prefix_vectors = answer_state.detach().float().cpu().numpy().copy()
+    prefix_texts = [
+        tokenizer.decode(answer_ids[:index], skip_special_tokens=True).strip()
+        for index in range(1, len(answer_ids) + 1)
+    ]
+    return (
+        prefix_vectors,
+        prefix_texts,
+        prompt_count,
+        len(answer_ids),
+        len(hidden_states),
+        feature_layer,
+        prompt_mode,
+        prompt_text,
+    )
 
 
 def render_prompt(tokenizer: Any, question: str) -> tuple[str, str]:
@@ -707,6 +767,8 @@ def _read_hidden_states(
                 "mode": settings.capture_mode,
                 "spans": {},
                 "nbytes": 0,
+                "token_span_bytes": 0,
+                "position_index": None,
                 "transient_bytes": 0,
                 "forward_calls": 0,
                 "note": str(exc),
@@ -729,6 +791,8 @@ def _read_hidden_states(
                     "mode": settings.capture_mode,
                     "spans": {},
                     "nbytes": 0,
+                    "token_span_bytes": 0,
+                    "position_index": None,
                     "transient_bytes": 0,
                     "forward_calls": 1,
                     "note": "Hidden-state forward pass ran out of memory.",
@@ -746,6 +810,8 @@ def _read_hidden_states(
                 "mode": settings.capture_mode,
                 "spans": {},
                 "nbytes": 0,
+                "token_span_bytes": 0,
+                "position_index": None,
                 "transient_bytes": 0,
                 "forward_calls": 1,
                 "note": f"Hidden-state forward pass failed: {exc}",
@@ -765,6 +831,8 @@ def _read_hidden_states(
                 "mode": settings.capture_mode,
                 "spans": {},
                 "nbytes": 0,
+                "token_span_bytes": 0,
+                "position_index": None,
                 "transient_bytes": 0,
                 "forward_calls": 1,
                 "note": "The model returned no hidden states.",
@@ -804,12 +872,29 @@ def _read_hidden_states(
         except (ValueError, RuntimeError) as exc:
             capture_note = f"Token span capture failed: {exc}"
 
-    capture_bytes = sum(span.nbytes for span in token_spans.values())
+    token_span_bytes = sum(span.nbytes for span in token_spans.values())
+    retained_arrays = [*vectors.values(), *token_spans.values()]
+    if answer_mean is not None:
+        retained_arrays.append(answer_mean)
+    retained_array_ids: set[int] = set()
+    capture_bytes = 0
+    for array in retained_arrays:
+        if id(array) not in retained_array_ids:
+            retained_array_ids.add(id(array))
+            capture_bytes += int(array.nbytes)
     seq_len = int(sequences.shape[1])
     num_layers = len(hidden_states)
     dim = int(hidden_states[0].shape[2]) if num_layers > 0 else 0
     elem_size = getattr(hidden_states[0], "element_size", lambda: 4)() if num_layers > 0 else 4
     transient_bytes = seq_len * num_layers * dim * elem_size
+    if token_spans:
+        capture_note = capture_note or "Generated token-span vectors retained."
+    elif capture_layers and generated_count < 1:
+        capture_note = capture_note or "No generated token positions were available to retain."
+    elif not capture_layers:
+        capture_note = "Final-position vectors retained; token-span vectors were not requested."
+    else:
+        capture_note = capture_note or "No generated token-span vectors were retained."
 
     return (
         feature,
@@ -823,9 +908,11 @@ def _read_hidden_states(
             "mode": settings.capture_mode,
             "spans": token_spans,
             "nbytes": capture_bytes,
+            "token_span_bytes": token_span_bytes,
+            "position_index": position,
             "transient_bytes": transient_bytes,
             "forward_calls": 1,
-            "note": capture_note or "Capture completed.",
+            "note": capture_note,
         },
     )
 

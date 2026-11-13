@@ -41,6 +41,8 @@ def render_turn_html(report: Mapping[str, Any], *, run_id: str = "") -> str:
     probe = _mapping(report.get("probe"))
     conclusion = _mapping(report.get("conclusion"))
     hidden = _mapping(report.get("hidden_state_metadata"))
+    layer_analysis = _mapping(report.get("layer_analysis"))
+    early_warning = _mapping(report.get("early_warning"))
     tokens = _rows(probabilities.get("tokens"))
     contested = _most_contested(tokens)
     body = [
@@ -50,7 +52,10 @@ def render_turn_html(report: Mapping[str, Any], *, run_id: str = "") -> str:
         _metric_cards(probabilities, factuality, conclusion),
         _token_table(_rows(alternatives.get("tokens")), contested),
         _claims_card(factuality),
+        _internal_model_card(config, hidden),
         _probe_card(report, probe),
+        _layer_analysis_card(layer_analysis),
+        _early_warning_card(early_warning),
         _summary_card(conclusion, factuality, probe, len(tokens)),
         "</main>",
         _footer(config, hidden),
@@ -114,9 +119,9 @@ def _run_card(
         f'<div class="mono small">RUN {_e(run_id or "-")} &middot; Single-step diagnostic</div>'
         f'<div class="chips">{"".join(chips)}</div></div>'
         '<div class="run-grid"><div class="pane">'
-        '<div class="label">PROMPT QUERY</div>'
+        '<div class="label">[01] QUESTION</div>'
         f'<div class="query">&ldquo;{_e(report.get("question", ""))}&rdquo;</div>'
-        f'<div class="label gap">GENERATED ANSWER</div><div>{_e(report.get("answer", ""))}</div>'
+        f'<div class="label gap">[02] GENERATED ANSWER</div><div>{_e(report.get("answer", ""))}</div>'
         '</div><div class="pane"><div class="label row">INFERENCE SEQUENCE'
         '<span class="legend"><b class="sw hi"></b>most contested '
         f'<b class="sw lo"></b>p &lt; {LOW_CONFIDENCE:.0%}</span></div>'
@@ -142,7 +147,7 @@ def _metric_cards(
     conclusion: Mapping[str, Any],
 ) -> str:
     if not probabilities.get("available"):
-        return '<section class="card"><p class="muted">No token probabilities.</p></section>'
+        return '<section class="card"><h2>[03] Token Generation Probabilities</h2><p class="muted">No token probabilities.</p></section>'
     mean = _float(probabilities.get("average_selected_probability"))
     geo = _float(probabilities.get("geometric_mean_probability"))
     entropy = _float(probabilities.get("average_entropy"))
@@ -164,7 +169,10 @@ def _metric_cards(
         f'<div><span class="badge {_STATUS_CLASS.get(status, "warn")}">{_e(status)}</span></div>'
         f'<p class="note">{note}</p></div>',
     ]
-    return f'<section class="metrics">{"".join(cards)}</section>'
+    return (
+        '<section class="metrics"><h2 class="metrics-title">[03] Token Generation Probabilities</h2>'
+        f"{''.join(cards)}</section>"
+    )
 
 
 def _metric(label: str, value: str, unit: str, note: str) -> str:
@@ -181,7 +189,7 @@ def _token_table(rows: list[dict[str, Any]], contested: int | None) -> str:
     body = "".join(_token_row(row, row.get("position") == contested) for row in rows)
     return (
         '<section class="card table"><div class="table-head"><div>'
-        "<h2>Token Sequence &amp; Logit Decomposition</h2>"
+        "<h2>[04] Token Sequence &amp; Logit Decomposition</h2>"
         "<p>Step-by-step next-token probabilities and runner-up alternatives.</p></div>"
         '<span class="label">TOP-3 CANDIDATES</span></div>'
         '<div class="scroll"><table><thead><tr><th>POS</th><th>SELECTED TOKEN</th>'
@@ -237,7 +245,7 @@ def _claims_card(factuality: Mapping[str, Any]) -> str:
             f'<div><div class="claim">{_e(claim.get("text"))}</div>{"".join(details)}</div></li>'
         )
     return (
-        '<section class="card"><h2>Claim Check</h2>'
+        '<section class="card"><h2>[05] Factuality Verification &amp; Claim Check</h2>'
         "<p class='muted'>Each sentence is checked against the curated catalog only. "
         "Missing evidence is not a hallucination.</p>"
         f'<ul class="claims">{"".join(items)}</ul></section>'
@@ -261,14 +269,182 @@ def _probe_card(report: Mapping[str, Any], probe: Mapping[str, Any]) -> str:
     else:
         pairs = [
             ("Protocol", probe.get("protocol")),
-            ("Raw experimental score", _fixed(_float(probe.get("raw_score")), 3)),
+            (
+                "Calibrated score"
+                if probe.get("calibration_status") == "validated"
+                else "Raw experimental score",
+                _fixed(_float(probe.get("raw_score")), 3),
+            ),
             ("Prediction", probe.get("prediction")),
             ("Threshold", probe.get("threshold")),
             ("Calibration status", probe.get("calibration_status")),
         ]
         cells = "".join(f"<dt>{name}</dt><dd>{_e(value or '-')}</dd>" for name, value in pairs)
         rows = f'<dl class="kv">{cells}</dl><p class="note">{_e(probe.get("note") or "")}</p>'
-    return f'<section class="card"><h2>Probe Analysis</h2>{headline}{rows}</section>'
+    return f'<section class="card"><h2>[07] Probe Analysis</h2>{headline}{rows}</section>'
+
+
+def _internal_model_card(config: Mapping[str, Any], hidden: Mapping[str, Any]) -> str:
+    """Show the model and capture details that support this turn's analysis."""
+    pairs = [
+        ("Model", config.get("model_name")),
+        ("Revision", config.get("model_revision")),
+        ("Device / dtype", f"{config.get('device') or '-'} / {config.get('dtype') or '-'}"),
+        ("Decoding", config.get("decoding")),
+        ("Hidden-state layers", hidden.get("hidden_state_count")),
+        ("Feature layer", hidden.get("feature_layer")),
+        ("Feature width", hidden.get("feature_dimension")),
+        ("Feature position", hidden.get("position")),
+        ("Capture mode", hidden.get("capture_mode")),
+        ("Retained capture", _bytes(hidden.get("capture_bytes"))),
+        ("Transient hidden-state peak", _bytes(hidden.get("transient_hidden_state_bytes"))),
+        ("Analysis forward passes", hidden.get("analysis_forward_calls")),
+        ("Analysis latency", _latency(hidden.get("analysis_latency_seconds"))),
+        ("Capture note", hidden.get("capture_note")),
+    ]
+    return _details_card("[06] Internal Model Analysis", pairs)
+
+
+def _layer_analysis_card(analysis: Mapping[str, Any]) -> str:
+    """Show trained-layer evaluation separately from per-answer representation drift."""
+    probe_layer = analysis.get("probe_layer")
+    hidden_count = analysis.get("hidden_state_count")
+    layer_label = (
+        "Calibrated generation probe layer"
+        if analysis.get("compatible_generation_probe")
+        else "Probe feature layer"
+    )
+    intro = (
+        f"{layer_label}: {probe_layer} (zero-indexed) of {hidden_count} hidden-state layers."
+        if probe_layer is not None
+        else "No trained probe layer is recorded for this report."
+    )
+    evaluations = _rows(analysis.get("probe_evaluation"))
+    if evaluations:
+        rows = "".join(
+            "<tr>"
+            f"<td>{_e(item.get('dataset') or '-')}</td>"
+            f"<td>{_e(item.get('n') if item.get('n') is not None else '-')}</td>"
+            f"<td>{_fixed(_float(item.get('auroc')), 3)}</td>"
+            f"<td>{_fixed(_float(item.get('ece')), 3)}</td>"
+            "</tr>"
+            for item in evaluations
+        )
+        evaluation_table = (
+            '<div class="scroll"><table class="compact"><thead><tr>'
+            "<th>EVALUATION SPLIT</th><th>N</th><th>AUROC</th><th>ECE</th>"
+            f"</tr></thead><tbody>{rows}</tbody></table></div>"
+        )
+    else:
+        evaluation_table = (
+            "<p class='muted'>No held-out layer metrics are stored with this probe.</p>"
+        )
+
+    changes = _rows(analysis.get("captured_layer_changes"))
+    if changes:
+        change_rows = "".join(
+            "<tr>"
+            f"<td>{_e(item.get('layer_index'))}</td>"
+            f"<td>{_fixed(_float(item.get('cosine_distance')), 6)}</td>"
+            f"<td>{_e(item.get('interpretation') or '')}</td>"
+            "</tr>"
+            for item in changes
+        )
+        change_table = (
+            '<h3>Captured representation changes</h3><div class="scroll">'
+            '<table class="compact"><thead><tr><th>LAYER</th><th>FIRST-TO-LAST COSINE DISTANCE</th>'
+            f"<th>INTERPRETATION</th></tr></thead><tbody>{change_rows}</tbody></table></div>"
+        )
+    else:
+        change_table = (
+            "<p class='muted'>Per-answer token spans were not captured, so representation change "
+            "cannot be calculated for this turn.</p>"
+        )
+    note = analysis.get("interpretation_note") or (
+        "A probe trained at one layer does not compare probe quality across layers."
+    )
+    return (
+        '<section class="card"><h2>[08] Layer-Wise Analysis</h2>'
+        f"<p class='muted'>{_e(intro)}</p>"
+        f"{evaluation_table}{change_table}"
+        f"<p class='note'>{_e(note)}</p></section>"
+    )
+
+
+def _early_warning_card(analysis: Mapping[str, Any]) -> str:
+    """Explain whether sequential warning lead time was actually measured."""
+    available = analysis.get("available") is True
+    status = "Measured for this answer" if available else "Not measured for this answer"
+    position = analysis.get("probe_position") or "unavailable"
+    reason = analysis.get("reason") or "No sequential warning evidence is stored for this turn."
+    required = analysis.get("required_data")
+    rows = [
+        ("Status", status),
+        ("Probe position", position),
+        ("Reason", reason),
+    ]
+    if required:
+        rows.append(("Needed to measure this answer", required))
+    evaluation = _mapping(analysis.get("held_out_evaluation"))
+    if evaluation:
+        lead = _mapping(evaluation.get("test_early_warning"))
+        prefix = _mapping(evaluation.get("test_prefix_metrics"))
+        training = _mapping(evaluation.get("training"))
+        threshold = evaluation.get("threshold", training.get("threshold"))
+        false_warning_rate = _float(lead.get("faithful_answer_false_warning_rate"))
+        flags_everything = false_warning_rate is not None and false_warning_rate >= 0.95
+        events = lead.get("hallucinated_answers_with_prefix_event")
+        timely = lead.get("timely_warning_count")
+        rows.extend(
+            [
+                ("Held-out Task 7 evaluation", "Aggregate prefix-level result; not this answer"),
+                (
+                    "Prefix-probe threshold",
+                    f"{threshold} (separate prefix probe; not the section 7 threshold)",
+                ),
+                (
+                    "Threshold rule",
+                    training.get("threshold_rule")
+                    or "validation F1 only, with no limit on false warnings",
+                ),
+                ("Test prefix AUROC", _fixed(_float(prefix.get("auroc")), 3)),
+                (
+                    "Hallucinated answers with a defined prefix event",
+                    _ratio(events, lead.get("reviewed_hallucinated_answers")),
+                ),
+                (
+                    "Timely warning coverage",
+                    "Not meaningful: this threshold flags every answer"
+                    if flags_everything
+                    else _ratio(timely, events),
+                ),
+                (
+                    "Mean lead among timely warnings",
+                    "Not meaningful at this threshold"
+                    if flags_everything
+                    else f"{_tokens(lead.get('mean_lead_tokens_among_timely_warnings'))} (n = {timely})",
+                ),
+                ("False-warning rate on faithful answers", _pct(false_warning_rate)),
+                (
+                    "Prefix labels vs reviewed labels",
+                    _disagreement_text(lead),
+                ),
+                ("Interpretation", _early_warning_interpretation(lead, flags_everything)),
+            ]
+        )
+    return _details_card("[09] Early-Warning Analysis", rows, muted=not available)
+
+
+def _details_card(title: str, pairs: list[tuple[str, object]], *, muted: bool = False) -> str:
+    cells = "".join(
+        f"<dt>{_e(name)}</dt><dd>{_e(value if value is not None else '-')}</dd>"
+        for name, value in pairs
+    )
+    tone = " muted" if muted else ""
+    return (
+        f'<section class="card{tone}"><h2>{_e(title)}</h2>'
+        f'<dl class="kv details">{cells}</dl></section>'
+    )
 
 
 def _summary_card(
@@ -311,7 +487,7 @@ def _summary_card(
     )
     limits = "".join(f"<li>{_e(item)}</li>" for item in _rows_text(conclusion.get("limitations")))
     return (
-        '<section class="card"><h2>Diagnostic Summary &amp; Limitations</h2>'
+        '<section class="card"><h2>[10] Diagnostic Summary &amp; Limitations</h2>'
         f'<div class="tiles">{html_tiles}</div>'
         f'<ul class="limits">{limits}</ul></section>'
     )
@@ -360,6 +536,67 @@ def _latency(seconds: object) -> str:
     if value is None:
         return "-"
     return f"{value * 1000:.0f} ms" if value < 1 else f"{value:.2f} s"
+
+
+def _bytes(value: object) -> str:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+        return "-"
+    if value < 1024:
+        return f"{value:.0f} B"
+    if value < 1024**2:
+        return f"{value / 1024:.1f} KiB"
+    return f"{value / 1024**2:.2f} MiB"
+
+
+def _disagreement_text(lead: Mapping[str, Any]) -> str:
+    count = lead.get("reviewed_vs_prefix_final_label_disagreements")
+    total = lead.get("test_answers_compared")
+    if isinstance(count, int) and isinstance(total, int) and total > 0:
+        head = f"{count} of {total} test answers disagree ({count / total:.0%})"
+    elif isinstance(count, int):
+        head = f"{count} test answers disagree"
+    else:
+        return "-"
+    return (
+        f"{head}. Prefix events come from the automatic evidence labeler, not the review, "
+        "which is the main reason this result is weak."
+    )
+
+
+def _early_warning_interpretation(lead: Mapping[str, Any], flags_everything: bool) -> str:
+    if flags_everything:
+        return (
+            "Exploratory only: every faithful answer is flagged at this threshold, "
+            "so the probe is not useful as an early warning."
+        )
+    timely = lead.get("timely_warning_count")
+    events = lead.get("hallucinated_answers_with_prefix_event")
+    rate = _float(lead.get("faithful_answer_false_warning_rate"))
+    if isinstance(timely, int) and isinstance(events, int) and events and rate is not None:
+        return (
+            f"Exploratory only: at a {rate:.0%} false-warning rate it warns on {timely} of {events} "
+            "defined events, so it is not a useful early warning."
+        )
+    return (
+        "Exploratory Task 7 result; this aggregate evaluation does not measure the current answer."
+    )
+
+
+def _ratio(numerator: object, denominator: object) -> str:
+    if (
+        isinstance(numerator, bool)
+        or not isinstance(numerator, int)
+        or isinstance(denominator, bool)
+        or not isinstance(denominator, int)
+        or denominator <= 0
+    ):
+        return "-"
+    return f"{numerator}/{denominator} ({numerator / denominator:.1%})"
+
+
+def _tokens(value: object) -> str:
+    number = _float(value)
+    return "-" if number is None else f"{number:.2f} tokens"
 
 
 def _pct(value: float | None) -> str:
@@ -455,7 +692,8 @@ width:10px;height:10px;border-radius:3px}.sw.hi{background:var(--accent)}
 border-radius:6px;padding:3px 9px}.tok.hi,tr.hi .tok{background:var(--accent);
 color:var(--card);border-color:var(--accent);font-weight:600}.tok.lo,tr.lo .tok{
 border-color:var(--warn);color:var(--warn)}.metrics{display:grid;
-grid-template-columns:repeat(4,1fr);gap:16px}.metric .value{font:600 30px var(--mono)}
+grid-template-columns:repeat(4,1fr);gap:16px}.metrics-title{grid-column:1/-1;margin-bottom:-8px}
+.metric .value{font:600 30px var(--mono)}
 .unit{font:11px var(--mono);color:var(--muted);margin-left:6px;letter-spacing:.05em}
 .note{color:var(--muted);margin:8px 0 0;font-size:14px}.dot{display:inline-block;width:8px;
 height:8px;border-radius:50%;margin-right:6px}.dot.ok{background:var(--ok)}
@@ -470,6 +708,9 @@ font:11px var(--mono);letter-spacing:.08em;color:var(--muted);font-weight:400;
 padding:10px 16px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
 td{padding:11px 16px;border-bottom:1px solid var(--line);vertical-align:middle}
 tr:last-child td{border-bottom:0}tr.hi td{background:var(--accent-soft)}
+.compact{margin:12px 0;min-width:540px}.compact th,.compact td{padding:8px 12px}
+.compact td{font-size:13px}.card h3{font-size:15px;margin:16px 0 4px}
+.details{margin-top:14px}.details dd{line-height:1.5}.card.muted{border-style:dashed}
 .bar{display:inline-block;width:140px;height:7px;border-radius:9px;background:var(--bar);
 margin-right:10px;vertical-align:middle;overflow:hidden}.bar b{display:block;height:100%;
 background:var(--accent);border-radius:9px}tr.lo .bar b{background:var(--warn)}

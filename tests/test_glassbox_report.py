@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+from glassbox.analysis.claims import default_catalog_path
 from glassbox.glassbox_report import build_report
 from glassbox.models.backend import GeneratedToken, GenerationResult
 from glassbox.models.distributions import TokenAlternative
@@ -270,6 +271,8 @@ def test_no_tokens_case(tmp_path):
 
     text = report.to_text()
     assert "No tokens were generated" in text
+    assert "Layer-wise status: UNAVAILABLE" in report._layer_section()
+    assert report.to_json()["factuality"]["evidence_status"] == "UNAVAILABLE"
 
     json_data = report.to_json()
     assert json_data["token_probabilities"]["available"] is False
@@ -346,6 +349,92 @@ def test_pair_probe_risk_score_is_never_exported_as_probability(
 
     assert "HALLUCINATION PROBABILITY: NOT AVAILABLE" in report.to_text()
     assert report.to_json()["calibrated_hallucination_probability"] is None
+
+
+def test_china_unmatched_claim_has_consistent_not_found_evidence(sample_generation, sample_turn):
+    sample_generation.answer = "The capital of China is Beijing."
+    report = build_report(
+        question="what is capital of china",
+        generation=sample_generation,
+        turn=sample_turn,
+        catalog_path=default_catalog_path(),
+    )
+
+    text = report.to_text()
+    data = report.to_json()
+    assert "Overall status: UNVALIDATED" in text
+    assert "Evidence status: NOT FOUND" in text
+    assert data["factuality"]["overall_status"] == data["conclusion"]["factuality_status"]
+    assert data["factuality"]["evidence_status"] == "NOT FOUND"
+    assert data["conclusion"]["evidence_status"] == "NOT FOUND"
+
+
+def test_capture_report_distinguishes_selected_vectors_from_token_spans(
+    sample_generation, sample_turn, tmp_path
+):
+    sample_generation.token_spans = {}
+    sample_generation.capture_mode = "final"
+    sample_generation.capture_bytes = (
+        sample_generation.layer_vectors[24].nbytes + sample_generation.answer_mean_feature.nbytes
+    )
+    sample_generation.token_span_bytes = 0
+    sample_generation.capture_position_index = 11
+    report = build_report(
+        question="Test",
+        generation=sample_generation,
+        turn=sample_turn,
+        catalog_path=tmp_path / "missing.yaml",
+    )
+
+    text = report.to_text()
+    hidden = report.to_json()["hidden_state_metadata"]
+    assert "Hidden-state layers observed: 25" in text
+    assert "Selected-position vector layers retained: [24]" in text
+    assert "Token-span layers retained: none" in text
+    assert f"Retained NumPy bytes: {sample_generation.capture_bytes}" in text
+    assert "Token-span budget usage: 0 / 32000000 bytes" in text
+    assert "SELECTED_LAYER_VECTORS_ONLY" in text
+    assert hidden["position_index"] == 11
+    assert hidden["retained_numpy_bytes"] > hidden["token_span_bytes"] == 0
+
+
+def test_layer_analysis_reports_observed_but_not_retained(sample_generation, sample_turn, tmp_path):
+    sample_generation.layer_vectors = {}
+    sample_generation.token_spans = {}
+    sample_generation.capture_bytes = 0
+    report = build_report(
+        question="Test",
+        generation=sample_generation,
+        turn=sample_turn,
+        catalog_path=tmp_path / "missing.yaml",
+    )
+
+    assert "OBSERVED_NOT_RETAINED" in report._layer_section()
+    assert "retained no reusable token vectors" in report._layer_section()
+
+
+def test_pairwise_prediction_is_experimental_not_generation_factuality(
+    sample_generation, sample_turn, tmp_path
+):
+    probe = SimpleNamespace(
+        metadata={"label_protocol": "halueval_qa_pair_v1", "threshold": 0.65},
+        calibrated=True,
+    )
+    sample_turn.probe_prediction = "faithful"
+    sample_turn.factual_risk_score = 0.2
+    report = build_report(
+        question="Test",
+        generation=sample_generation,
+        turn=sample_turn,
+        probe=probe,
+        catalog_path=tmp_path / "missing.yaml",
+    )
+
+    text = report.to_text()
+    assert "Prediction: faithful" in text
+    assert "PAIRWISE EXPERIMENTAL PROBE - NOT VALIDATED FOR GENERATION FACTUALITY" in text
+    assert "HALLUCINATION PROBABILITY: NOT AVAILABLE" in text
+    assert "Factuality probability: NOT AVAILABLE" in text
 
 
 def test_json_serialization_with_numpy(tmp_path):

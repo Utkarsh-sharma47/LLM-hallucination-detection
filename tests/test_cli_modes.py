@@ -78,7 +78,7 @@ def test_demo_json_export_preserves_every_report(monkeypatch, tmp_path):
 
     session = SimpleNamespace(turns=[], probe=None)
 
-    def fake_run_question(session, question, _console):
+    def fake_run_question(session, question, _console, _output_json=None, _retrieval_client=None):
         session.turns.append(SimpleNamespace(generation=SimpleNamespace(question=question)))
         return 0
 

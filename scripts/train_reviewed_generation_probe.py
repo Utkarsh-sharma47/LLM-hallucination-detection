@@ -1,290 +1,278 @@
-"""Train and calibrate a generation probe on the AI-assisted reviewed targets.
+"""Train a generation-style probe on the task-7 reviewed labels and check it.
 
-Handoff implementation for task7-halueval-generation-2400-001-ai-v1.
-Reads the 1,271 binary candidate targets from training-index.jsonl,
-joins with frozen Qwen hidden-state vectors from features.npz,
-fits StandardScaler and LogisticRegression, applies Platt scaling,
-and evaluates the Issue #18 calibration gate (ECE <= 0.10).
+Data
+  labels  : artifacts/reviews/task7-halueval-generation-2400-001-ai-v1/generated/training-index.jsonl
+            (FAITHFUL / HALLUCINATED only, splits already group-isolated)
+  vectors : artifacts/experiments/task7-halueval-generation-2400-001/features.npz
+            (Qwen2.5-0.5B, layer 24, last generated token, 896 dims)
+
+Protocol (fixed before looking at test)
+  train       -> fit the probe. Regularisation C is picked by grouped 5-fold CV inside train.
+  validation  -> fit the Platt calibrator (the ECE fix). Nothing else.
+  test        -> scored once. AUROC, ECE, Brier with question-group bootstrap intervals.
+  external    -> calibration batch 001 (reviewed, never trained on), scored once as a
+                 second out-of-sample check. Use --no-external to skip.
+
+Baselines on the same test rows: answer length, shuffled labels, and a constant
+predictor that always outputs the validation hallucination rate. The probe must
+beat these, not just 0.5.
+
+Usage
+  python scripts/train_reviewed_generation_probe.py
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
+import joblib
 import numpy as np
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import (
-    average_precision_score,
-    precision_recall_fscore_support,
-    roc_auc_score,
-)
+from sklearn.metrics import brier_score_loss, roc_auc_score
+from sklearn.model_selection import GroupKFold
+from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_INDEX = (
-    REPO_ROOT
-    / "artifacts"
-    / "reviews"
-    / "task7-halueval-generation-2400-001-ai-v1"
-    / "generated"
-    / "training-index.jsonl"
-)
-CALIBRATION_ECE_LIMIT = 0.10
-ECE_BINS = 10
+from glassbox.config import repo_root
+from glassbox.probes.scoring import expected_calibration_error
+
+RUN = "task7-halueval-generation-2400-001"
+INDEX = f"reviews/{RUN}-ai-v1/generated/training-index.jsonl"
+FEATURES = f"experiments/{RUN}/features.npz"
+QUEUE = f"experiments/{RUN}/review_queue.json"
+BATCH_RUN = "calibration-batch-001-qwen0.5b"
+C_GRID = (0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 1.0)
+ECE_LIMIT, MIN_PER_CLASS, SEED = 0.10, 20, 0
 
 
-def expected_calibration_error(
-    labels: np.ndarray, scores: np.ndarray, *, bins: int = ECE_BINS
-) -> float:
-    """Calculate Expected Calibration Error across equal-width confidence bins."""
-    truth = np.asarray(labels, dtype=np.float64)
-    values = np.asarray(scores, dtype=np.float64)
-    if truth.shape != values.shape or truth.size == 0:
-        raise ValueError("labels and scores must be non-empty and aligned")
-    edges = np.linspace(0.0, 1.0, bins + 1)
-    total = float(truth.size)
-    error = 0.0
-    for idx, (start, end) in enumerate(zip(edges[:-1], edges[1:], strict=False)):
-        if idx == bins - 1:
-            mask = (values >= start) & (values <= end)
-        else:
-            mask = (values >= start) & (values < end)
-        count = int(np.sum(mask))
-        if count == 0:
-            continue
-        confidence = float(values[mask].mean())
-        accuracy = float(truth[mask].mean())
-        error += (count / total) * abs(accuracy - confidence)
-    return float(error)
-
-
-def select_best_threshold(labels: np.ndarray, scores: np.ndarray) -> float:
-    """Pick validation threshold with maximum F1, tie-breaking on lowest FPR."""
-    best_thresh = 0.5
-    best_key = (-1.0, -1.0)
-    truth = np.asarray(labels)
-    for step in range(1, 20):
-        t = step / 20.0
-        pred = (scores >= t).astype(int)
-        _, _, f1, _ = precision_recall_fscore_support(
-            truth, pred, average="binary", zero_division=0
-        )
-        fp = int(np.sum((truth == 0) & (pred == 1)))
-        tn = int(np.sum((truth == 0) & (pred == 0)))
-        fpr = fp / max(1, fp + tn)
-        key = (f1, -fpr)
-        if key > best_key:
-            best_key = key
-            best_thresh = t
-    return best_thresh
-
-
-def fit_platt_scaling(scores: np.ndarray, labels: np.ndarray, seed: int) -> tuple[float, float]:
-    """Fit a 1D logistic map on validation scores."""
-    model = LogisticRegression(random_state=seed, max_iter=1000)
-    model.fit(scores.reshape(-1, 1), labels)
-    return float(model.coef_[0, 0]), float(model.intercept_[0])
-
-
-def apply_platt_scaling(scores: np.ndarray, coef: float, intercept: float) -> np.ndarray:
-    logits = coef * scores + intercept
-    logits = np.clip(logits, -50.0, 50.0)
-    return 1.0 / (1.0 + np.exp(-logits))
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--features",
-        type=Path,
-        required=True,
-        help="Path to task7 features.npz (contains question_id and vectors)",
-    )
-    parser.add_argument(
-        "--index",
-        type=Path,
-        default=DEFAULT_INDEX,
-        help="Path to training-index.jsonl (default: task7 v1 index)",
-    )
-    parser.add_argument("--seed", type=int, default=0, help="Random seed")
-    parser.add_argument(
-        "--output-dir",
-        type=Path,
-        default=REPO_ROOT / "artifacts" / "experiments" / "task7-generation-reviewed-probe",
-        help="Where to write the results and probe model",
-    )
-    args = parser.parse_args()
-
-    if not args.features.is_file():
-        print(f"Error: Features file not found at {args.features}", file=sys.stderr)
-        sys.exit(1)
-    if not args.index.is_file():
-        print(f"Error: Index file not found at {args.index}", file=sys.stderr)
-        sys.exit(1)
-
-    print(f"Loading candidate index from: {args.index}")
-    rows_by_id = {}
-    with args.index.open("r", encoding="utf-8") as f:
-        for line in f:
-            item = json.loads(line)
-            rows_by_id[str(item["question_id"])] = item
-
-    print(f"Loading features from: {args.features}")
-    feat_data = np.load(args.features)
-    qids = [str(q) for q in feat_data["question_id"]]
-    vectors = feat_data["vectors"]
-    vectors_by_id = {qid: vec for qid, vec in zip(qids, vectors, strict=False)}
-
-    data_by_split = {"train": ([], []), "validation": ([], []), "test": ([], [])}
-    for qid, row in rows_by_id.items():
-        if qid not in vectors_by_id:
-            raise KeyError(f"Question ID {qid} from index missing in features.npz")
-        split = row["split"]
-        target = int(row["target"])
-        data_by_split[split][0].append(vectors_by_id[qid])
-        data_by_split[split][1].append(target)
-
-    X_train = np.asarray(data_by_split["train"][0], dtype=np.float32)
-    y_train = np.asarray(data_by_split["train"][1], dtype=int)
-    X_val = np.asarray(data_by_split["validation"][0], dtype=np.float32)
-    y_val = np.asarray(data_by_split["validation"][1], dtype=int)
-    X_test = np.asarray(data_by_split["test"][0], dtype=np.float32)
-    y_test = np.asarray(data_by_split["test"][1], dtype=int)
-
-    print("\nSplit counts (Binary Candidates):")
-    print(
-        f"  Train:      {len(y_train)} rows (Faithful={np.sum(y_train == 0)}, Hallucinated={np.sum(y_train == 1)})"
-    )
-    print(
-        f"  Validation: {len(y_val)} rows (Faithful={np.sum(y_val == 0)}, Hallucinated={np.sum(y_val == 1)})"
-    )
-    print(
-        f"  Test:       {len(y_test)} rows (Faithful={np.sum(y_test == 0)}, Hallucinated={np.sum(y_test == 1)})"
+def make_probe(c: float):
+    return make_pipeline(
+        StandardScaler(),
+        LogisticRegression(C=c, class_weight="balanced", max_iter=5000),
     )
 
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_val_scaled = scaler.transform(X_val)
-    X_test_scaled = scaler.transform(X_test)
 
-    print("\nFitting LogisticRegression(class_weight='balanced')...")
-    clf = LogisticRegression(class_weight="balanced", random_state=args.seed, max_iter=1000)
-    clf.fit(X_train_scaled, y_train)
+def logit(p):
+    p = np.clip(p, 1e-6, 1 - 1e-6)
+    return np.log(p / (1 - p)).reshape(-1, 1)
 
-    val_raw_scores = clf.predict_proba(X_val_scaled)[:, 1]
-    best_thresh = select_best_threshold(y_val, val_raw_scores)
-    print(f"Selected Validation Threshold (max F1): {best_thresh:.2f}")
 
-    coef, intercept = fit_platt_scaling(val_raw_scores, y_val, seed=args.seed)
-    val_calibrated = apply_platt_scaling(val_raw_scores, coef, intercept)
-    val_ece = expected_calibration_error(y_val, val_calibrated)
-    print(f"Validation ECE: {val_ece:.4f} (Limit: <= {CALIBRATION_ECE_LIMIT})")
+def bootstrap(y, s, g, fn, n=1000):
+    rng = np.random.default_rng(SEED)
+    groups = np.unique(g)
+    by = {k: np.flatnonzero(g == k) for k in groups}
+    vals = []
+    for _ in range(n):
+        idx = np.concatenate([by[k] for k in rng.choice(groups, len(groups), replace=True)])
+        if len(set(y[idx])) == 2:
+            vals.append(fn(y[idx], s[idx]))
+    lo, hi = np.percentile(vals, [2.5, 97.5])
+    return [float(lo), float(hi)]
 
-    test_raw_scores = clf.predict_proba(X_test_scaled)[:, 1]
-    test_calibrated = apply_platt_scaling(test_raw_scores, coef, intercept)
-    test_preds = (test_raw_scores >= best_thresh).astype(int)
 
-    test_auroc = float(roc_auc_score(y_test, test_raw_scores))
-    test_auprc = float(average_precision_score(y_test, test_raw_scores))
-    test_ece = expected_calibration_error(y_test, test_calibrated)
-    prec, rec, f1, _ = precision_recall_fscore_support(
-        y_test, test_preds, average="binary", zero_division=0
+def metrics(y, raw, cal, g):
+    return {
+        "n": int(len(y)),
+        "hallucinated": int(y.sum()),
+        "faithful": int((1 - y).sum()),
+        "auroc": float(roc_auc_score(y, cal)),
+        "auroc_95ci": bootstrap(y, cal, g, roc_auc_score),
+        "ece_raw": float(expected_calibration_error(y, raw)),
+        "ece_calibrated": float(expected_calibration_error(y, cal)),
+        "ece_calibrated_95ci": bootstrap(y, cal, g, expected_calibration_error),
+        "brier_calibrated": float(brier_score_loss(y, cal)),
+        "mean_score_hallucinated": float(cal[y == 1].mean()),
+        "mean_score_faithful": float(cal[y == 0].mean()),
+    }
+
+
+def load_task7(art: Path):
+    rows = [
+        json.loads(line)
+        for line in (art / INDEX).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    rows = [r for r in rows if r["label"] in ("FAITHFUL", "HALLUCINATED")]
+    z = np.load(art / FEATURES, allow_pickle=False)
+    vec = {str(q): v for q, v in zip(z["question_id"], z["vectors"], strict=False)}
+    answers = {
+        r["question_id"]: str(r["answer"])
+        for r in json.loads((art / QUEUE).read_text(encoding="utf-8"))["rows"]
+    }
+    missing = [r["question_id"] for r in rows if r["question_id"] not in vec]
+    if missing:
+        raise ValueError(f"{len(missing)} reviewed rows have no vector, e.g. {missing[:3]}")
+    out = {}
+    for split in ("train", "validation", "test"):
+        sel = [r for r in rows if r["split"] == split]
+        out[split] = {
+            "X": np.stack([vec[r["question_id"]] for r in sel]).astype(np.float64),
+            "y": np.array([int(r["label"] == "HALLUCINATED") for r in sel]),
+            "g": np.array([r["group_id"] for r in sel]),
+            "ans": [answers.get(r["question_id"], "") for r in sel],
+            "ids": {r["question_id"] for r in sel},
+            "groups": {r["group_id"] for r in sel},
+        }
+    a, b, c = (out[s]["groups"] for s in ("train", "validation", "test"))
+    if a & b or a & c or b & c:
+        raise ValueError("question groups overlap between splits")
+    return out
+
+
+def load_batch(art: Path):
+    from glassbox.probes.calibration_batch import (
+        _paths,
+        analysis_shards,
+        read_decisions,
+        read_queue,
+        read_shard,
+        read_vectors,
     )
 
-    tn = int(np.sum((y_test == 0) & (test_preds == 0)))
-    fp = int(np.sum((y_test == 0) & (test_preds == 1)))
-    fn = int(np.sum((y_test == 1) & (test_preds == 0)))
-    tp = int(np.sum((y_test == 1) & (test_preds == 1)))
-    fpr = fp / max(1, fp + tn)
+    batch_dir, run_dir, review_dir = _paths(art, "pair-calibration-validation-001", BATCH_RUN)
+    plan = json.loads((batch_dir / "plan.json").read_text(encoding="utf-8"))
+    queue = read_queue(review_dir)
+    dec = read_decisions(review_dir, queue)
+    X, y, g, ids = [], [], [], []
+    for shard in analysis_shards(queue, dec, int(plan["shard_count"])):
+        vectors = read_vectors(run_dir, shard)
+        for row in read_shard(run_dir, shard):
+            lab = dec[int(row["plan_index"])]["label"]
+            v = vectors.get(str(row["question_id"]))
+            if (
+                lab not in ("FAITHFUL", "HALLUCINATED")
+                or v is None
+                or row.get("label_name") == "EXCLUDED"
+            ):
+                continue
+            if (int(row["feature_layer"]), row["position"], row["model_name"]) != (
+                24,
+                "last_generated_token",
+                "Qwen/Qwen2.5-0.5B-Instruct",
+            ):
+                raise ValueError("batch vectors use a different model/layer/position")
+            X.append(v)
+            y.append(int(lab == "HALLUCINATED"))
+            g.append(row["group_id"])
+            ids.append(row["question_id"])
+    return np.stack(X).astype(np.float64), np.array(y), np.array(g), set(ids)
 
-    calibration_accepted = test_ece <= CALIBRATION_ECE_LIMIT
 
-    print("\n" + "=" * 50)
-    print("TEST EVALUATION RESULTS (188 Candidate Rows)")
-    print("=" * 50)
-    print(f"AUROC:               {test_auroc:.4f}")
-    print(f"AUPRC:               {test_auprc:.4f}")
-    print(f"F1 Score:            {f1:.4f}")
-    print(f"Precision:           {prec:.4f}")
-    print(f"Recall:              {rec:.4f}")
-    print(f"False Positive Rate: {fpr:.4f}")
-    print(f"Confusion Matrix:    tn={tn}, fp={fp}, fn={fn}, tp={tp}")
-    print("-" * 50)
-    print(f"Test ECE:            {test_ece:.4f}")
-    print(f"Calibration Gate:    {'ACCEPTED' if calibration_accepted else 'REJECTED'}")
-    print("=" * 50)
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--out", default="artifacts/probes/generation-reviewed-task7-v1")
+    ap.add_argument("--no-external", action="store_true")
+    args = ap.parse_args()
+    root = repo_root()
+    art = root / "artifacts"
+    d = load_task7(art)
+    tr, va, te = d["train"], d["validation"], d["test"]
 
-    args.output_dir.mkdir(parents=True, exist_ok=True)
+    # 1. pick C by grouped CV inside train only
+    cv = {}
+    for c in C_GRID:
+        aucs = []
+        for fit_i, hold_i in GroupKFold(n_splits=5).split(tr["X"], tr["y"], tr["g"]):
+            m = make_probe(c).fit(tr["X"][fit_i], tr["y"][fit_i])
+            aucs.append(roc_auc_score(tr["y"][hold_i], m.predict_proba(tr["X"][hold_i])[:, 1]))
+        cv[c] = float(np.mean(aucs))
+    best_c = max(cv, key=cv.get)
+    probe = make_probe(best_c).fit(tr["X"], tr["y"])
+
+    # 2. Platt calibrator on validation only
+    raw_va = probe.predict_proba(va["X"])[:, 1]
+    platt = LogisticRegression(C=1e6, max_iter=5000).fit(logit(raw_va), va["y"])
+
+    def cal(raw):
+        return platt.predict_proba(logit(raw))[:, 1]
+
+    # 3. test, once
+    raw_te = probe.predict_proba(te["X"])[:, 1]
+    test = metrics(te["y"], raw_te, cal(raw_te), te["g"])
+
+    # baselines on the same test rows
+    def feats(ans):
+        return np.array([[len(a), len(a.split())] for a in ans], dtype=float)
+
+    length = make_pipeline(StandardScaler(), LogisticRegression(class_weight="balanced")).fit(
+        feats(tr["ans"]), tr["y"]
+    )
+    shuffled = make_probe(best_c).fit(tr["X"], np.random.default_rng(SEED).permutation(tr["y"]))
+    base_rate = float(va["y"].mean())
+    baselines = {
+        "answer_length_auroc": float(
+            roc_auc_score(te["y"], length.predict_proba(feats(te["ans"]))[:, 1])
+        ),
+        "shuffled_label_auroc": float(
+            roc_auc_score(te["y"], shuffled.predict_proba(te["X"])[:, 1])
+        ),
+        "constant_base_rate": base_rate,
+        "constant_base_rate_ece": float(
+            expected_calibration_error(te["y"], np.full(len(te["y"]), base_rate))
+        ),
+        "note": "A constant score has AUROC 0.5 by definition. Its ECE shows how low ECE can go with zero detection.",
+    }
+
+    external = None
+    if not args.no_external:
+        Xb, yb, gb, idb = load_batch(art)
+        overlap = idb & (tr["ids"] | va["ids"] | te["ids"])
+        if overlap:
+            raise ValueError(f"batch shares {len(overlap)} questions with task 7")
+        raw_b = probe.predict_proba(Xb)[:, 1]
+        external = metrics(yb, raw_b, cal(raw_b), gb)
+
+    enough = test["faithful"] >= MIN_PER_CLASS and test["hallucinated"] >= MIN_PER_CLASS
+    verdict = {
+        "detects": test["auroc_95ci"][0] > 0.5,
+        "beats_length_baseline": test["auroc"] > baselines["answer_length_auroc"],
+        "ece_within_limit": test["ece_calibrated"] <= ECE_LIMIT,
+        "enough_per_class": enough,
+    }
     report = {
-        "status": "COMPLETED",
-        "binary_candidate_count": len(rows_by_id),
-        "split_counts": {
-            "train": len(y_train),
-            "validation": len(y_val),
-            "test": len(y_test),
+        "created": datetime.now(UTC).isoformat(timespec="seconds"),
+        "labels": INDEX,
+        "vectors": FEATURES,
+        "reviewer_type": "AI",
+        "human_reviewed": False,
+        "train": {
+            "n": int(len(tr["y"])),
+            "faithful": int((1 - tr["y"]).sum()),
+            "hallucinated": int(tr["y"].sum()),
         },
-        "threshold": best_thresh,
-        "platt_scaling": {"coef": coef, "intercept": intercept},
-        "validation_ece": val_ece,
-        "test_metrics": {
-            "auroc": test_auroc,
-            "auprc": test_auprc,
-            "f1": f1,
-            "precision": prec,
-            "recall": rec,
-            "false_positive_rate": fpr,
-            "confusion": {"tn": tn, "fp": fp, "fn": fn, "tp": tp},
-            "ece": test_ece,
-            "calibration_validated": calibration_accepted,
+        "validation": {
+            "n": int(len(va["y"])),
+            "faithful": int((1 - va["y"]).sum()),
+            "hallucinated": int(va["y"].sum()),
+            "used_for": "Platt calibrator only",
         },
+        "cv_auroc_by_C": {str(k): v for k, v in cv.items()},
+        "chosen_C": best_c,
+        "test": test,
+        "baselines": baselines,
+        "external_batch_001": external,
+        "verdict": verdict,
+        "note": "Single AI reviewer. Test and external sets were scored once; do not retune on them.",
     }
-    with (args.output_dir / "report.json").open("w", encoding="utf-8") as f:
-        json.dump(report, f, indent=2)
-    print(f"\nReport written to: {args.output_dir / 'report.json'}")
-
-    # Save trained probe artifact (probe.joblib and metadata.json)
-    import joblib
-
-    payload = {
-        "classifier": clf,
-        "mean": np.asarray(scaler.mean_, dtype=np.float64),
-        "scale": np.asarray(scaler.scale_, dtype=np.float64),
-        "feature_dim": 896,
-    }
-    joblib.dump(payload, args.output_dir / "probe.joblib")
-
-    metadata = {
-        "task": "qwen_generation_factuality",
-        "model_name": "Qwen/Qwen2.5-0.5B-Instruct",
-        "model_revision": "7ae557604adf67be50417f59c2c2f167def9a775",
-        "position": "last_generated_token",
-        "feature_dim": 896,
-        "threshold": best_thresh,
-        "calibration": "platt",
-        "calibration_validated": calibration_accepted,
-        "test_ece": test_ece,
-        "platt": {"coef": coef, "intercept": intercept},
-        "preprocessing": {
-            "type": "standard_scaler",
-            "mean": scaler.mean_.tolist(),
-            "scale": scaler.scale_.tolist(),
-        },
-        "metrics": {
-            "auroc": test_auroc,
-            "auprc": test_auprc,
-            "f1": f1,
-            "precision": prec,
-            "recall": rec,
-            "false_positive_rate": fpr,
-        },
-    }
-    with (args.output_dir / "metadata.json").open("w", encoding="utf-8") as f:
-        json.dump(metadata, f, indent=2)
-    print(f"Probe artifact written to: {args.output_dir / 'probe.joblib'}")
+    out = root / args.out
+    out.mkdir(parents=True, exist_ok=True)
+    joblib.dump({"probe": probe, "platt": platt}, out / "probe.joblib")
+    (out / "report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+    print(
+        json.dumps(
+            {
+                k: report[k]
+                for k in ("chosen_C", "test", "baselines", "external_batch_001", "verdict")
+            },
+            indent=2,
+        )
+    )
+    print(f"Wrote {out / 'report.json'}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

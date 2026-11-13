@@ -171,6 +171,7 @@ def _apply_probe(turn: TurnRecord, probe: LoadedProbe | None) -> None:
         turn.score_note = (
             "Calibrated probe output from Platt scaling fit on the validation split only. "
             f"Held-out ECE was {ece_text}. "
+            f"{_base_rate_note(probe)}"
             "The positive class is the HaluEval hallucinated-answer label for a supplied answer, "
             "not a new judgment that this demo answer is false, and not a measured detector accuracy. "
             f"{note}"
@@ -181,6 +182,16 @@ def _apply_probe(turn: TurnRecord, probe: LoadedProbe | None) -> None:
     turn.factual_risk_score = None
     turn.probe_task = _probe_task(probe)
     turn.score_note = note
+
+
+def _base_rate_note(probe: LoadedProbe) -> str:
+    rate = probe.metadata.get("base_rate")
+    if isinstance(rate, bool) or not isinstance(rate, (int, float)):
+        return ""
+    return (
+        f"In the validation data {float(rate):.0%} of answers were hallucinated, so a typical "
+        "answer scores near that value. Read a score against it, not against 50%. "
+    )
 
 
 def _probe_task(probe: LoadedProbe) -> str:
