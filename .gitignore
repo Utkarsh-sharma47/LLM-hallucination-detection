@@ -1,4 +1,5 @@
 .venv/
+.agents/
 .env
 .env.*
 !.env.example
@@ -14,6 +15,8 @@ build/
 # Per-machine and scratch outputs stay local.
 artifacts/runtime/
 artifacts/experiments/test-*/
+artifacts/experiments/task7-halueval-generation-2400-001/
+artifacts/experiments/calibration-batch-001-qwen0.5b/
 artifacts/**/*.lock
 /outputs/
 /models/
