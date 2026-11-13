@@ -260,7 +260,7 @@ On generation-001, only the saved last-piece vector exists. Mean-pool and the ex
 
 ## Early-warning event (issue #7)
 
-The event definition is in [ROADMAP.md](ROADMAP.md) task 8. No run stores per-prefix evidence labels, so no lead-time number is published. Scoring two generated pieces from stored vectors does not load Qwen and does not change the pair threshold.
+The event definition is in [ROADMAP.md](ROADMAP.md) task 8. The Task 7 early-warning run stores per-prefix feature/evidence records and reports held-out lead time. Its threshold flags all faithful test answers, so the result is exploratory and not a useful detector. Ordinary live CLI answers still have no protocol-derived onset labels, so their per-answer lead-time field remains null. The `eval-early-warning` command applies the saved prefix probe to stored per-prefix vectors and labels; it does not load Qwen or change the pair threshold.
 
 ```bash
 python -m glassbox --offline eval-saved-probe --max-questions 200 --seed 0 \
