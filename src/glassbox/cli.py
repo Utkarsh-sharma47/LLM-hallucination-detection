@@ -292,9 +292,10 @@ def main(argv: list[str] | None = None) -> int:
     variants.add_argument("--run-id", default="generation-variants-001")
     early = commands.add_parser(
         "eval-early-warning",
-        help="Score earlier generated pieces. Does not publish a lead time or load Qwen.",
+        help="Apply a saved prefix probe to stored prefix features and evidence labels.",
     )
     early.add_argument("--scores", type=Path, required=True)
+    early.add_argument("--probe", type=Path, default=None, help="Prefix-probe bundle or directory.")
     early.add_argument("--run-id", default="early-warning-001")
     layers = commands.add_parser(
         "compare-generation-layers",

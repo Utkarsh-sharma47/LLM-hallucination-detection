@@ -40,11 +40,11 @@ Requires the #41 labeled set; blocked until validation/test targets are met.
 Event definition (pre-registered in ROADMAP task 8): the smallest generated
 piece index *i* such that the prefix through *i* is labeled HALLUCINATED by
 the generation evidence protocol or a documented human review citing
-passage evidence. `early_warning_lead` stays null until a run stores
-per-prefix evidence labels, and stays null when no flag occurs at or before
-the event. Thresholds are chosen on validation only. This measurement is
-not a calibrated risk and is not evidence for pair-protocol AUROC.
-`vectors_at_generated_positions` scores multiple positions without loading Qwen.
+passage evidence. `early_warning_lead` stays null for records without stored
+per-prefix evidence labels, when there is no event, or when no flag occurs at
+or before the event. The Task 7 pipeline stores prefix features and labels and
+selects its threshold on validation only. This measurement is not a calibrated
+risk and is not evidence for pair-protocol AUROC.
 
 ## Provenance retrieval (#40)
 
