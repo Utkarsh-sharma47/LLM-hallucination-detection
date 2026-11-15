@@ -1,0 +1,7 @@
+{
+  "human_reviewed": false,
+  "policy_version": "ai_passage_review_v1",
+  "reviewer": "Claude (AI-assisted review, Cowork session)",
+  "reviewer_type": "AI",
+  "rubric": "artifacts/reviews/task7-halueval-generation-2400-001-ai-v1/RUBRIC.md"
+}

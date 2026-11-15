@@ -1,0 +1,18 @@
+{
+  "batch_id": "calibration-batch-001-qwen0.5b-ai-v1",
+  "policy_version": "ai_passage_review_v1",
+  "reviewer": "Claude (AI-assisted review, Cowork session)",
+  "total_rows": 800,
+  "label_counts": {
+    "HALLUCINATED": 533,
+    "UNVALIDATED": 180,
+    "FAITHFUL": 76,
+    "AMBIGUOUS": 11
+  },
+  "binary_candidates": {
+    "total": 609,
+    "faithful": 76,
+    "hallucinated": 533
+  },
+  "annotations_sha256": "7068f1a15744ba721f50452d7be62e6439d32399c5e19419289b56e0a447fd34"
+}

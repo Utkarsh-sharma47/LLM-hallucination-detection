@@ -14,10 +14,11 @@ Status words used here and in [ROADMAP.md](ROADMAP.md):
 
 ## Verified results
 
-These numbers match a saved report. They do not validate hallucination detection.
+These numbers match a saved report.
 
 | Run | Protocol | What was scored | Model | Result | Artifacts |
 | --- | --- | --- | --- | --- | --- |
+| `task7-generation-reviewed-probe` | `ai_passage_review_v1` on Qwen generations | 2,400 Qwen generations (1,271 binary candidates; 820 train / 263 val / 188 test) | `Qwen/Qwen2.5-0.5B-Instruct`, layer 24, dim 896 | Test precision 0.876, recall 0.931, F1 0.902, AUROC 0.744, AUPRC 0.936, FPR 0.724. Confusion tn 8, fp 21, fn 11, tp 148. Threshold 0.05. Test ECE 0.033; calibration accepted. Beats answer-text TF-IDF baseline (0.735). | Probe: `artifacts/experiments/task7-generation-reviewed-probe/probe.joblib`. Report: `report.json`. |
 | `halueval-pair-002` | `halueval_qa_pair_v1` | Supplied HaluEval answers. 200 questions, seed 0. | `Qwen/Qwen2.5-0.5B-Instruct`, revision `7ae557604adf67be50417f59c2c2f167def9a775`, `bfloat16` | Test precision 0.976, recall 1.000, F1 0.988, AUROC 0.996, AUPRC 0.995, FPR 0.025. Confusion tn 39, fp 1, fn 0, tp 40. Threshold 0.65. | Live probe: `artifacts/probes/final-hidden-state/`. Record: `artifacts/experiments/halueval-pair-002/record.json`. |
 | `halueval-text-baselines-001` | Same pair split | Answer text only. No Qwen load. | none | Length AUROC 0.981. Gold-answer overlap AUROC 1.000. TF-IDF AUROC 0.907. | `artifacts/experiments/halueval-text-baselines-001/` |
 
