@@ -42,7 +42,6 @@ def render_turn_html(report: Mapping[str, Any], *, run_id: str = "") -> str:
     conclusion = _mapping(report.get("conclusion"))
     hidden = _mapping(report.get("hidden_state_metadata"))
     layer_analysis = _mapping(report.get("layer_analysis"))
-    early_warning = _mapping(report.get("early_warning"))
     tokens = _rows(probabilities.get("tokens"))
     contested = _most_contested(tokens)
     body = [
