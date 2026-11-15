@@ -39,7 +39,7 @@ class GlassBoxReport:
     retrieval_client: RetrievalClient | None = None
 
     def to_text(self) -> str:
-        """Return the 10-section terminal report."""
+        """Return the 6-section terminal report."""
         lines = [
             _RULE,
             "GLASS BOX | LLM GENERATION ANALYSIS",
@@ -57,23 +57,12 @@ class GlassBoxReport:
             "[04] FINAL TOKEN ALTERNATIVES",
             self._token_alternatives_section(),
             "",
-            "[05] FACTUALITY VERIFICATION",
-            self._factuality_section(),
-            "",
-            "[06] INTERNAL MODEL ANALYSIS",
-            self._internal_model_section(),
-            "",
-            "[07] PROBE ANALYSIS",
+            "[05] PROBE ANALYSIS",
             self._probe_section(),
             "",
-            "[08] LAYER-WISE ANALYSIS",
+            "[06] LAYER-WISE ANALYSIS",
             self._layer_section(),
             "",
-            "[09] EARLY-WARNING ANALYSIS",
-            self._early_warning_section(),
-            "",
-            "[10] FINAL CONCLUSION",
-            self._conclusion_section(),
             _RULE,
             "",
         ]

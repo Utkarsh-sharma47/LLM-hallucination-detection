@@ -639,7 +639,7 @@ def _write_json_export(path: Path, payload: object, console: Console) -> bool:
 
 COMMAND_LEGEND = (
     "n = ask another question\n"
-    "r = show full report (10-section Glass Box analysis)\n"
+    "r = show full report (6-section Glass Box analysis)\n"
     "t = token probability analysis — generated output-token probabilities and alternatives\n"
     "p = probe analysis — hidden-state probe score, separate from token probabilities\n"
     "v = reference verification — external curated check, separate from the probe\n"

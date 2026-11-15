@@ -131,12 +131,8 @@ def test_report_to_text(sample_generation, sample_turn, tmp_path):
     assert "[02] GENERATED ANSWER" in text
     assert "[03] TOKEN GENERATION PROBABILITIES" in text
     assert "[04] FINAL TOKEN ALTERNATIVES" in text
-    assert "[05] FACTUALITY VERIFICATION" in text
-    assert "[06] INTERNAL MODEL ANALYSIS" in text
-    assert "[07] PROBE ANALYSIS" in text
-    assert "[08] LAYER-WISE ANALYSIS" in text
-    assert "[09] EARLY-WARNING ANALYSIS" in text
-    assert "[10] FINAL CONCLUSION" in text
+    assert "[05] PROBE ANALYSIS" in text
+    assert "[06] LAYER-WISE ANALYSIS" in text
 
     # Check content
     assert "What is capital of India?" in text
@@ -295,7 +291,7 @@ def test_probe_compatibility_messaging(sample_generation, sample_turn, tmp_path)
 
     text = report.to_text()
     # The probe section should show the experimental status
-    assert "[07] PROBE ANALYSIS" in text
+    assert "[05] PROBE ANALYSIS" in text
     assert "HALLUCINATION PROBABILITY: NOT AVAILABLE" in text
 
 
