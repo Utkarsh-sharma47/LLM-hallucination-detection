@@ -18,6 +18,8 @@ generation:
   # Last answer token, matching the probe's training position. The prompt-only
   # position does not see the answer that the label refers to.
   position: last_generated_token
+  # Keep the answer-token vectors of every layer so the layer-wise section can compare layers.
+  capture_mode: all
 
 references: configs/curated_facts.yaml
 probe_dir: null
