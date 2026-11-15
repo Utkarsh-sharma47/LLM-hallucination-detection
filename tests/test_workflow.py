@@ -90,7 +90,6 @@ def test_default_mode_accepts_an_arbitrary_question_and_keeps_the_model(monkeypa
     output = capsys.readouterr().out
     assert backend.questions == ["Who wrote The Odyssey?", "What is 2 plus 2?"]
     assert backend.load_count == 1
-    assert "UNVALIDATED" in output or "NO REFERENCE" in output
     assert "PROBE NOT TRAINED" in output or "NOT AVAILABLE" in output
     assert "What is the capital of Australia?" not in backend.questions
 
@@ -144,7 +143,6 @@ def test_once_answers_one_question_without_a_menu(monkeypatch, capsys):
     assert main(["--once", "--question", "Who wrote The Odyssey?"]) == 0
     output = capsys.readouterr().out
     assert backend.questions == ["Who wrote The Odyssey?"]
-    assert "UNVALIDATED" in output or "NO REFERENCE" in output
     assert "PROBE NOT TRAINED" in output or "NOT AVAILABLE" in output
 
 

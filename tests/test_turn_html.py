@@ -58,7 +58,6 @@ def test_page_escapes_user_text_and_keeps_probability_unavailable():
     assert "HALLUCINATION PROBABILITY: NOT AVAILABLE" in page
     assert "No probe loaded. No prediction was invented." in page
     assert "not a confirmed hallucination" in page
-    assert "Limit one" in page
 
 
 def test_contested_and_low_confidence_steps_are_marked():

@@ -42,7 +42,6 @@ def render_turn_html(report: Mapping[str, Any], *, run_id: str = "") -> str:
     conclusion = _mapping(report.get("conclusion"))
     hidden = _mapping(report.get("hidden_state_metadata"))
     layer_analysis = _mapping(report.get("layer_analysis"))
-    early_warning = _mapping(report.get("early_warning"))
     tokens = _rows(probabilities.get("tokens"))
     contested = _most_contested(tokens)
     body = [
@@ -51,12 +50,8 @@ def render_turn_html(report: Mapping[str, Any], *, run_id: str = "") -> str:
         _run_card(report, config, tokens, contested, run_id),
         _metric_cards(probabilities, factuality, conclusion),
         _token_table(_rows(alternatives.get("tokens")), contested),
-        _claims_card(factuality),
-        _internal_model_card(config, hidden),
         _probe_card(report, probe),
         _layer_analysis_card(layer_analysis),
-        _early_warning_card(early_warning),
-        _summary_card(conclusion, factuality, probe, len(tokens)),
         "</main>",
         _footer(config, hidden),
     ]
@@ -93,8 +88,7 @@ def _header(model: str) -> str:
         '<span class="sub">LLM DIAGNOSTIC OUTPUT</span>'
         f'<span class="chip"><span class="k">MODEL:</span> {_e(model)}</span>'
         '<span class="chip live"><i></i>COMPLETE</span></div>'
-        '<button class="theme" type="button" id="theme" aria-label="Toggle theme">'
-        "Theme</button></header>"
+        "</header>"
     )
 
 
@@ -281,7 +275,7 @@ def _probe_card(report: Mapping[str, Any], probe: Mapping[str, Any]) -> str:
         ]
         cells = "".join(f"<dt>{name}</dt><dd>{_e(value or '-')}</dd>" for name, value in pairs)
         rows = f'<dl class="kv">{cells}</dl><p class="note">{_e(probe.get("note") or "")}</p>'
-    return f'<section class="card"><h2>[07] Probe Analysis</h2>{headline}{rows}</section>'
+    return f'<section class="card"><h2>[05] Probe Analysis</h2>{headline}{rows}</section>'
 
 
 def _internal_model_card(config: Mapping[str, Any], hidden: Mapping[str, Any]) -> str:
@@ -364,7 +358,7 @@ def _layer_analysis_card(analysis: Mapping[str, Any]) -> str:
         "A probe trained at one layer does not compare probe quality across layers."
     )
     return (
-        '<section class="card"><h2>[08] Layer-Wise Analysis</h2>'
+        '<section class="card"><h2>[06] Layer-Wise Analysis</h2>'
         f"<p class='muted'>{_e(intro)}</p>"
         f"{evaluation_table}{change_table}"
         f"<p class='note'>{_e(note)}</p></section>"
@@ -648,19 +642,11 @@ _PAGE = """<!DOCTYPE html>
 """
 
 _CSS = """
-:root{--bg:#f6f8fb;--card:#ffffff;--line:#e3e8ef;--ink:#0f172a;--muted:#64748b;
+:root{color-scheme:light;--bg:#f6f8fb;--card:#ffffff;--line:#e3e8ef;--ink:#0f172a;--muted:#64748b;
 --accent:#0284c7;--accent-soft:#e0f2fe;--ok:#059669;--ok-soft:#d1fae5;--warn:#b45309;
 --warn-soft:#fef3c7;--bad:#dc2626;--bad-soft:#fee2e2;--chip:#f1f5f9;--bar:#e2e8f0;
 --mono:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace;
 --sans:"Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b1220;
---card:#131c2e;--line:#22304a;--ink:#e2e8f0;--muted:#8a9bb5;--accent:#22d3ee;
---accent-soft:#0e3a47;--ok:#34d399;--ok-soft:#0f3b2e;--warn:#fbbf24;--warn-soft:#3d2f0c;
---bad:#f87171;--bad-soft:#3f1717;--chip:#1b2740;--bar:#22304a}}
-:root[data-theme="dark"]{--bg:#0b1220;--card:#131c2e;--line:#22304a;--ink:#e2e8f0;
---muted:#8a9bb5;--accent:#22d3ee;--accent-soft:#0e3a47;--ok:#34d399;--ok-soft:#0f3b2e;
---warn:#fbbf24;--warn-soft:#3d2f0c;--bad:#f87171;--bad-soft:#3f1717;--chip:#1b2740;
---bar:#22304a}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);
 font:15px/1.5 var(--sans)}code,.mono{font-family:var(--mono)}.small{font-size:12px}
 .muted{color:var(--muted)}.top{display:flex;justify-content:space-between;align-items:center;
@@ -673,9 +659,7 @@ border-radius:6px;padding:4px 9px;max-width:100%;overflow-wrap:anywhere}.chip .k
 .chip .v{font-weight:500;margin-left:4px}.chip .accent{color:var(--accent)}
 .chip.live{color:var(--ok);background:var(--ok-soft);border-color:transparent;
 border-radius:99px}.chip.live i{display:inline-block;width:7px;height:7px;border-radius:50%;
-background:var(--ok);margin-right:6px}.theme{font:12px var(--mono);background:var(--card);
-color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 12px;
-cursor:pointer}.wrap{max-width:1240px;margin:0 auto;padding:24px 16px 40px;display:grid;
+background:var(--ok);margin-right:6px}.wrap{max-width:1240px;margin:0 auto;padding:24px 16px 40px;display:grid;
 gap:20px;grid-template-columns:minmax(0,1fr)}.card{background:var(--card);border:1px solid var(--line);border-radius:14px;
 padding:20px}h2{margin:0 0 4px;font-size:19px}.label{font:11px var(--mono);
 letter-spacing:.08em;color:var(--muted);margin-bottom:6px}.label.row{display:flex;
@@ -736,11 +720,4 @@ grid-template-columns:1fr}}@media (max-width:520px){.metrics{grid-template-colum
 .top{padding:12px 16px}}
 """
 
-_SCRIPT = """
-(function(){var root=document.documentElement,b=document.getElementById("theme");
-function dark(){var t=root.getAttribute("data-theme");if(t)return t==="dark";
-return window.matchMedia("(prefers-color-scheme: dark)").matches}
-function label(){b.textContent=dark()?"Light theme":"Dark theme"}
-b.addEventListener("click",function(){root.setAttribute("data-theme",dark()?"light":"dark");
-label()});label()})();
-"""
+_SCRIPT = ""
