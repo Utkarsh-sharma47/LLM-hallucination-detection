@@ -73,6 +73,7 @@ def load_demo_config(
         top_k=_int(generation.get("top_k", 5), "generation.top_k"),
         layer_index=_int(generation.get("layer_index", -1), "generation.layer_index"),
         position=_string(generation.get("position", "last_prompt_token"), "generation.position"),
+        capture_mode=_string(generation.get("capture_mode", "final"), "generation.capture_mode"),
     )
     probe_dir = _optional_path(payload.get("probe_dir"))
     references_path = Path(references)
