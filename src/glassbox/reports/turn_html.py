@@ -334,33 +334,13 @@ def _layer_analysis_card(analysis: Mapping[str, Any]) -> str:
             "<p class='muted'>No held-out layer metrics are stored with this probe.</p>"
         )
 
-    changes = _rows(analysis.get("captured_layer_changes"))
-    if changes:
-        change_rows = "".join(
-            "<tr>"
-            f"<td>{_e(item.get('layer_index'))}</td>"
-            f"<td>{_fixed(_float(item.get('cosine_distance')), 6)}</td>"
-            f"<td>{_e(item.get('interpretation') or '')}</td>"
-            "</tr>"
-            for item in changes
-        )
-        change_table = (
-            '<h3>Captured representation changes</h3><div class="scroll">'
-            '<table class="compact"><thead><tr><th>LAYER</th><th>FIRST-TO-LAST COSINE DISTANCE</th>'
-            f"<th>INTERPRETATION</th></tr></thead><tbody>{change_rows}</tbody></table></div>"
-        )
-    else:
-        change_table = (
-            "<p class='muted'>Per-answer token spans were not captured, so representation change "
-            "cannot be calculated for this turn.</p>"
-        )
     note = analysis.get("interpretation_note") or (
         "A probe trained at one layer does not compare probe quality across layers."
     )
     return (
         '<section class="card"><h2>[06] Layer-Wise Analysis</h2>'
         f"<p class='muted'>{_e(intro)}</p>"
-        f"{evaluation_table}{change_table}"
+        f"{evaluation_table}"
         f"<p class='note'>{_e(note)}</p></section>"
     )
 

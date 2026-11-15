@@ -325,18 +325,7 @@ class GlassBoxReport:
                 "pass, but retained no reusable token vectors; layer-wise analysis is unavailable."
             )
 
-        if lines:
-            lines.append("")
-        lines.extend(["Captured layer | First-to-last cosine distance | Interpretation", "-" * 75])
-
-        for layer in spans:
-            distance = layer.get("cosine_distance")
-            interpretation = layer.get("interpretation", "")
-            lines.append(
-                f"{layer.get('layer_index', 'n/a'):13} | {distance if distance is not None else 'n/a':31} | {str(interpretation)[:40]}"
-            )
-
-        return "\n".join(lines)
+        return "\n".join(lines) if lines else "Layer-wise analysis captured for this turn."
 
     def _layer_analysis_json(self) -> dict[str, Any]:
         spans = self.generation.token_spans or {}
